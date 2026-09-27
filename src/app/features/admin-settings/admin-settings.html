@@ -1,0 +1,41 @@
+@if (scopes.isCommunity()) {
+  <app-admin-community-settings />
+} @else {
+<form class="settings-form" (ngSubmit)="save()">
+  <label for="siteTitle">サービス名</label>
+  <p class="hint">ヘッダとブラウザのタブに表示されます（例: TOKYO GIFU CONNECT）。</p>
+  <input
+    id="siteTitle"
+    name="siteTitle"
+    type="text"
+    [placeholder]="tenant()?.name ?? ''"
+    [ngModel]="siteTitle()"
+    (ngModelChange)="siteTitle.set($event)"
+  />
+
+  <label for="logo">アイコン（ロゴ画像・2MBまで）</label>
+  <p class="hint">
+    ヘッダのロゴと、ブラウザのタブのアイコン（ファビコン）・ホーム画面に追加したときのアイコンに使われます。
+    ファビコンは画像を正方形に収めて自動で作ります（横長の画像は上下に余白が入ります）。正方形に近い画像がおすすめです。
+  </p>
+  @if (displayLogoUrl(); as logoUrl) {
+    <div class="previews">
+      <img [src]="logoUrl" alt="アイコンのプレビュー" class="logo-preview" />
+      <div class="favicon-preview" aria-label="タブでの見え方">
+        <img [src]="displayFaviconUrl() ?? logoUrl" alt="" />
+        <span>{{ siteTitle() || tenant()?.name }}</span>
+      </div>
+    </div>
+  }
+  <input id="logo" name="logo" type="file" accept="image/*" (change)="onFileSelected($event)" />
+
+  <button type="submit" [disabled]="saving()">保存</button>
+</form>
+
+@if (successMessage()) {
+  <p class="success">{{ successMessage() }}</p>
+}
+@if (errorMessage()) {
+  <p class="error">{{ errorMessage() }}</p>
+}
+}

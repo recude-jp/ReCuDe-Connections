@@ -1,0 +1,52 @@
+<header class="app-header">
+  <a class="brand" routerLink="/talk">
+    @if (tenant()?.branding?.logoUrl; as logoUrl) {
+      <img [src]="logoUrl" alt="" class="brand-logo" />
+    }
+    <span class="brand-name">{{ brandName() }}</span>
+  </a>
+  @if (shownCommunities().length > 0) {
+    <span class="communities" role="list" aria-label="所属する連携コミュニティ">
+      @for (community of shownCommunities(); track community.id) {
+        <span class="community" role="listitem" tabindex="0" [attr.aria-label]="community.name">
+          <app-community-logo [name]="community.name" [logoUrl]="community.logoUrl" [text]="community.logoText" [size]="28" [nativeTitle]="false" />
+          <span class="tooltip" aria-hidden="true">{{ community.name }}</span>
+        </span>
+      }
+      @if (moreCommunities() > 0) {
+        <span class="community" role="listitem" tabindex="0" [attr.aria-label]="'ほかに ' + hiddenCommunityNames()">
+          <span class="more">+{{ moreCommunities() }}</span>
+          <span class="tooltip" aria-hidden="true">{{ hiddenCommunityNames() }}</span>
+        </span>
+      }
+    </span>
+  }
+
+  <nav class="header-nav" aria-label="メインメニュー">
+    @for (item of navItems(); track item.path) {
+      <a [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page">
+        <span class="nav-icon">
+          <fa-icon [icon]="item.icon" />
+          <app-count-badge [count]="badgeFor(item.path).count" [label]="badgeFor(item.path).label" />
+        </span>
+        <span>{{ item.label }}</span>
+      </a>
+    }
+  </nav>
+</header>
+
+<main class="app-main">
+  <router-outlet />
+</main>
+
+<nav class="tab-bar" aria-label="メインメニュー">
+  @for (item of navItems(); track item.path) {
+    <a [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page">
+      <span class="nav-icon">
+        <fa-icon [icon]="item.icon" />
+        <app-count-badge [count]="badgeFor(item.path).count" [label]="badgeFor(item.path).label" />
+      </span>
+      <span>{{ item.label }}</span>
+    </a>
+  }
+</nav>

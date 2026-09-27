@@ -1,0 +1,152 @@
+$accent: #0f766e;
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.name {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.affiliation {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: #57534e;
+}
+
+.roles {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 0;
+
+  .badge {
+    margin: 0;
+  }
+
+  &:empty {
+    display: none;
+  }
+}
+
+.profile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+
+  dt {
+    color: #78716c;
+  }
+
+  dd {
+    margin: 0;
+    word-break: break-word;
+  }
+}
+
+.dashboard-page .edit {
+  margin-top: 8px;
+}
+
+.photo-edit {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.photo-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+
+  .hint {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #78716c;
+  }
+}
+
+.photo-button {
+  padding: 6px 14px;
+  border: 1px solid $accent;
+  border-radius: 8px;
+  color: $accent;
+  font-size: 0.9rem;
+  cursor: pointer;
+
+  input[type='file'] {
+    display: none;
+  }
+}
+
+.dashboard-page .link-button {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #991b1b;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.required {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.7rem;
+}
+
+app-profile-form {
+  margin: 4px 0 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dashboard-page .secondary {
+  background: #fff;
+  color: #57534e;
+  border: 1px solid #d6d3d1;
+}
+
+.roles .badge.guest {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.guest-note {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef9c3;
+  color: #713f12;
+  font-size: 0.85rem;
+}
+
+.private-note {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  color: #6366f1;
+}
+
+.avatar-text {
+  max-width: 6em;
+}

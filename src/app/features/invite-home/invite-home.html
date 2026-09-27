@@ -1,0 +1,48 @@
+<div class="list-page">
+  <app-connect-tabs />
+
+  <app-invite-target-picker (targetChange)="onTargetChange($event)" />
+
+  <section class="qr-section">
+    <h2>QRコードで招待</h2>
+    <p class="placeholder">
+      @if (target()?.isCommunity) {
+        イベントなどで直接会った人に見せてください。スマホで読み込むと参加の画面が開き、「{{ target()!.name }}」のメンバーとして参加すると、あなたと1対1のトークができます。
+      } @else {
+        イベントなどで直接会った人に見せてください。スマホで読み込むと参加の画面が開き、ゲストとして参加すると、あなたと1対1のトークができます。
+      }
+    </p>
+
+    <div class="qr-box">
+      @if (qrImage(); as src) {
+        <img [src]="src" [attr.alt]="(target()?.name ?? '') + 'への招待のQRコード'" width="240" height="240" />
+        @if (target(); as t) {
+          <span class="qr-logo" aria-hidden="true">
+            <app-community-logo [name]="t.name" [logoUrl]="t.logoUrl" [text]="t.logoText" [size]="44" />
+          </span>
+        }
+      } @else if (loading()) {
+        <span class="qr-placeholder">読み込み中...</span>
+      } @else {
+        <span class="qr-placeholder">表示できません</span>
+      }
+    </div>
+    @if (qr(); as q) {
+      <p class="qr-url">{{ q.url }}</p>
+      <button type="button" class="regenerate" [disabled]="regenerating()" (click)="regenerate()">
+        QRコードを作り直す
+      </button>
+    }
+    @if (successMessage()) {
+      <p class="success">{{ successMessage() }}</p>
+    }
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+  </section>
+
+  <p class="send-link">
+    <a routerLink="/connect/send" queryParamsHandling="preserve">招待の送付</a>
+    <span class="placeholder">（名前と電話番号・メールアドレスを入れて、招待リンクを送る）</span>
+  </p>
+</div>

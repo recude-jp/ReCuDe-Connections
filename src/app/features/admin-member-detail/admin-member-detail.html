@@ -1,0 +1,171 @@
+<p class="back"><a [routerLink]="scopes.link('members')">← 会員一覧</a></p>
+
+@if (members() === undefined) {
+  <p class="placeholder">読み込み中...</p>
+} @else if (member(); as m) {
+  <div class="title-row">
+    <app-member-avatar [photoPath]="m.photoPath" [name]="m.displayName" [text]="m.avatarText" [size]="48" />
+    <h2>{{ m.displayName }}</h2>
+    @if (m.roles.admin) {
+      <span class="role-badge admin">管理者</span>
+    }
+    @if (m.roles.recommender) {
+      <span class="role-badge recommender">推薦者</span>
+    }
+    @if (!isFullMember(m)) {
+      <span class="role-badge" [class.guest]="m.membership === 'guest'" [class.community]="m.membership === 'community'">
+        {{ membershipLabel(m.membership) }}
+      </span>
+    }
+    @if (m.isActive) {
+      <span class="status-badge active">有効</span>
+    } @else {
+      <span class="status-badge suspended">停止</span>
+    }
+  </div>
+
+  <dl class="profile">
+    <dt>電話番号</dt>
+    <dd>{{ m.phoneNumber }}</dd>
+    @for (field of profileFields(); track field.id) {
+      @if (!field.hidden || valueOf(m, field.id)) {
+        <dt>{{ field.label }}{{ field.hidden ? '（非表示の項目）' : '' }}</dt>
+        <dd>
+          {{ formatValue(valueOf(m, field.id), field) || '—' }}
+          @if (field.private) {
+            <span class="private-note">非公開</span>
+          }
+        </dd>
+      }
+    }
+    <dt>連携コミュニティ</dt>
+    <dd>
+      @for (community of memberCommunities(); track community.id) {
+        <span class="role-badge community">{{ community.name }}</span>
+      } @empty {
+        —
+      }
+    </dd>
+    <dt>役職</dt>
+    <dd>{{ m.positionLevel || '—' }}</dd>
+    <dt>推薦者</dt>
+    <dd>
+      @if (m.invitedBy) {
+        <a [routerLink]="scopes.link('members', m.invitedBy)">{{ recommenderName() }}</a>
+      } @else {
+        —（初期登録）
+      }
+    </dd>
+    <dt>登録日</dt>
+    <dd>{{ formatDate(m.createdAt) || '—' }}</dd>
+  </dl>
+
+  @if (scopes.isCommunity()) {
+    @if (scopes.community(); as community) {
+      <app-admin-community-member [member]="m" [community]="community" />
+    }
+  } @else {
+  @if (successMessage()) {
+    <p class="success">{{ successMessage() }}</p>
+  }
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  @if (!isFullMember(m)) {
+    @let app = m.membershipApplication;
+    <h3>会員申請</h3>
+    <div class="application">
+      @if (!app) {
+        <p class="placeholder">まだ会員申請はありません（{{ m.membership === 'community' ? '連携コミュニティのメンバーとして参加中' : 'ゲストとして参加中' }}）。</p>
+      } @else if (app.status === 'pending') {
+        <p>
+          <strong>審査待ち</strong>（{{ formatDate(app.submittedAt) }} 申請）
+          @if (app.termsAgreement) {
+            ・会員条件に同意済み
+          }
+        </p>
+        <p class="placeholder">上のプロフィールを確認し、会費などテナントの条件を満たしていれば承認してください。</p>
+        <label class="reason">
+          否認する場合の理由（任意・申請した人に表示されます）
+          <textarea rows="2" maxlength="500" [value]="rejectReason()" (input)="rejectReason.set($any($event.target).value)"></textarea>
+        </label>
+        <div class="decide">
+          <button type="button" class="approve" [disabled]="processing()" (click)="decideMembership(m, true)">
+            正規の会員として承認する
+          </button>
+          <button type="button" class="danger" [disabled]="processing()" (click)="decideMembership(m, false)">
+            否認する
+          </button>
+        </div>
+      } @else if (app.status === 'rejected') {
+        <p>否認済み（{{ formatDate(app.decidedAt) }}）@if (app.rejectReason) { ・理由: {{ app.rejectReason }} }</p>
+        <p class="placeholder">本人がマイページの「会員登録」から申請し直すと、ここに審査待ちとして出ます。</p>
+      }
+    </div>
+  }
+
+  <h3>操作</h3>
+  <div class="actions">
+    <div class="action">
+      <div>
+        <strong>認定推薦者</strong>
+        <p class="placeholder">候補者をSMSで招待し、推薦を承認できるロールです。</p>
+      </div>
+      <button
+        type="button"
+        [disabled]="processing() || (!isFullMember(m) && !m.roles.recommender)"
+        [title]="!isFullMember(m) ? 'ルートコミュニティの会員でない人にはロールを付けられません（会員申請を承認してから）' : ''"
+        (click)="toggleRecommender(m)"
+      >
+        {{ m.roles.recommender ? '推薦者を外す' : '推薦者に任命する' }}
+      </button>
+    </div>
+
+    <div class="action">
+      <div>
+        <strong>管理者</strong>
+        <p class="placeholder">
+          @if (m.roles.admin && isLastAdmin()) {
+            最後の1人の管理者のため、管理者ロールを外せません。
+          } @else {
+            管理画面に入り、会員の管理やサービス設定ができるロールです。
+          }
+        </p>
+      </div>
+      <button
+        type="button"
+        [disabled]="processing() || (m.roles.admin && isLastAdmin()) || (!isFullMember(m) && !m.roles.admin)"
+        (click)="toggleAdmin(m)"
+      >
+        {{ m.roles.admin ? '管理者を外す' : '管理者に任命する' }}
+      </button>
+    </div>
+
+    <div class="action">
+      <div>
+        <strong>アカウント</strong>
+        <p class="placeholder">
+          @if (isSelf()) {
+            自分自身のアカウントは停止できません。
+          } @else if (m.isActive && isLastAdmin()) {
+            最後の1人の管理者のため、停止できません。
+          } @else {
+            停止した会員はログインできなくなります。再開すると元どおり使えます。
+          }
+        </p>
+      </div>
+      <button
+        type="button"
+        [class.danger]="m.isActive"
+        [disabled]="processing() || (m.isActive && (isSelf() || isLastAdmin()))"
+        (click)="toggleActive(m)"
+      >
+        {{ m.isActive ? 'アカウントを停止する' : 'アカウントを再開する' }}
+      </button>
+    </div>
+  </div>
+  }
+} @else {
+  <p class="placeholder">会員が見つかりませんでした。</p>
+}

@@ -1,0 +1,98 @@
+$accent: #0f766e;
+
+.qr-section {
+  text-align: center;
+
+  h2 {
+    margin-top: 0;
+    text-align: left;
+  }
+
+  .placeholder {
+    text-align: left;
+  }
+}
+
+.qr-box {
+  display: inline-grid;
+  place-items: center;
+  width: 256px;
+  height: 256px;
+  margin: 8px auto 4px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: #fff;
+
+  position: relative;
+
+  > img {
+    display: block;
+    width: 240px;
+    height: 240px;
+  }
+}
+
+// QRコードの中心に重ねる招待先のロゴ(白い余白で囲み、周りのセルと区切る)。
+.qr-logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+
+.qr-placeholder {
+  color: #a8a29e;
+  font-size: 0.9rem;
+}
+
+.qr-url {
+  margin: 4px 0 8px;
+  font-size: 0.7rem;
+  color: #a8a29e;
+  word-break: break-all;
+}
+
+.regenerate {
+  padding: 6px 14px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  background: #fff;
+  color: #57534e;
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
+.send-link {
+  margin: 24px 0 8px;
+  padding: 14px 16px;
+  border: 1px solid #ccfbf1;
+  border-radius: 10px;
+  background: #f0fdfa;
+
+  a {
+    font-weight: 700;
+    color: $accent;
+  }
+
+  .placeholder {
+    font-size: 0.8rem;
+  }
+}
+
+.success {
+  color: #166534;
+}
+
+.error {
+  color: #b91c1c;
+}

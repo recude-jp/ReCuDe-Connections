@@ -1,0 +1,70 @@
+$accent: #0f766e;
+
+h2 {
+  margin-top: 0;
+}
+
+h3 {
+  margin: 20px 0 8px;
+  font-size: 0.95rem;
+  color: #44403c;
+}
+
+.intro {
+  font-size: 0.9rem;
+  color: #57534e;
+  line-height: 1.7;
+}
+
+.done {
+  font-size: 0.95rem;
+}
+
+.status {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+
+  p {
+    margin: 6px 0 0;
+  }
+
+  &.pending {
+    background: #f0fdfa;
+    color: #115e59;
+  }
+
+  &.rejected {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+}
+
+.agree {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 0.9rem;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.submit {
+  margin-top: 16px;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 8px;
+  background: $accent;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+
+  &:disabled {
+    background: #a8a29e;
+    cursor: not-allowed;
+  }
+}

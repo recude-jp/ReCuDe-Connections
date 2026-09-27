@@ -1,0 +1,92 @@
+@for (field of fields(); track field.id) {
+  @let inputId = idPrefix() + '-' + field.id;
+  <div class="field">
+    <label [for]="inputId">
+      {{ field.label }}
+      @if (field.required) {
+        <span class="required">必須</span>
+      }
+      @if (field.private) {
+        <span class="private" title="本人と管理者だけが見られます">非公開</span>
+      }
+    </label>
+
+    @switch (field.type) {
+      @case ('derived') {
+        <div class="derived" [id]="inputId">
+          <strong>{{ derived(field) || '—' }}</strong>
+          <span>「{{ sourceLabel(field) }}」から自動で決まります</span>
+        </div>
+      }
+      @case ('yearMonth') {
+        <div class="year-month">
+          <select [id]="inputId" [attr.aria-label]="field.label + 'の年'" (change)="setYearMonth(field.id, 'year', $any($event.target).value)">
+            <option value="">年</option>
+            @for (y of years; track y) {
+              <option [value]="y" [selected]="yearOf(field.id) === y">{{ y }}年</option>
+            }
+          </select>
+          <select [attr.aria-label]="field.label + 'の月'" (change)="setYearMonth(field.id, 'month', $any($event.target).value)">
+            <option value="">月</option>
+            @for (m of months; track m) {
+              <option [value]="m" [selected]="monthOf(field.id) === m">{{ m }}月</option>
+            }
+          </select>
+        </div>
+        @if (field.private) {
+          <p class="hint">この項目は他の会員には見えません（本人と事務局だけが見られます）。</p>
+        }
+      }
+      @case ('select') {
+        <select [id]="inputId" [value]="text(field.id)" (change)="setText(field.id, $any($event.target).value)">
+          <option value="">選択してください</option>
+          @for (option of field.options ?? []; track option) {
+            <option [value]="option" [selected]="text(field.id) === option">{{ option }}</option>
+          }
+        </select>
+      }
+      @case ('tags') {
+        <div class="tags">
+          @for (tag of tags(field.id); track tag) {
+            <span class="tag">
+              {{ tag }}
+              <button type="button" [attr.aria-label]="tag + ' を外す'" (click)="removeTag(field.id, tag)">×</button>
+            </span>
+          }
+        </div>
+        <div class="tag-input">
+          <input
+            #tagInput
+            [id]="inputId"
+            type="text"
+            maxlength="30"
+            [attr.list]="inputId + '-options'"
+            placeholder="入力して「追加」（複数入れられます）"
+            (keydown.enter)="$event.preventDefault(); addTags(field.id, tagInput)"
+          />
+          <button type="button" class="add" (click)="addTags(field.id, tagInput)">追加</button>
+        </div>
+        <datalist [id]="inputId + '-options'">
+          @for (option of options()[field.id] ?? []; track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
+      }
+      @default {
+        <input
+          [id]="inputId"
+          type="text"
+          maxlength="50"
+          [attr.list]="inputId + '-options'"
+          [value]="text(field.id)"
+          (input)="setText(field.id, $any($event.target).value)"
+        />
+        <datalist [id]="inputId + '-options'">
+          @for (option of options()[field.id] ?? []; track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
+      }
+    }
+  </div>
+}

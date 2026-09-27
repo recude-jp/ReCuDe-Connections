@@ -1,0 +1,140 @@
+<form class="filters" (submit)="$event.preventDefault()">
+  <label>
+    名前
+    <input
+      type="search"
+      name="nameQuery"
+      placeholder="表示名で検索"
+      [ngModel]="nameQuery()"
+      (ngModelChange)="nameQuery.set($event)"
+    />
+  </label>
+  <label>
+    ロール
+    <select name="roleFilter" [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)">
+      <option value="all">すべて</option>
+      <option value="admin">管理者</option>
+      @if (!scopes.isCommunity()) {
+        <option value="recommender">認定推薦者</option>
+      }
+      <option value="none">ロールなし</option>
+    </select>
+  </label>
+  <label>
+    区分
+    <select name="membershipFilter" [ngModel]="membershipFilter()" (ngModelChange)="membershipFilter.set($event)">
+      <option value="all">すべて</option>
+      <option value="member">正規の会員</option>
+      <option value="guest">ゲスト</option>
+      <option value="community">連携コミュニティだけ</option>
+      <option value="pending">会員申請の審査待ち</option>
+    </select>
+  </label>
+  @if (!scopes.isCommunity() && communities().length > 0) {
+    <label>
+      連携コミュニティ
+      <select name="communityFilter" [ngModel]="communityFilter()" (ngModelChange)="communityFilter.set($event)">
+        <option value="all">すべて</option>
+        @for (community of communities(); track community.id) {
+          <option [value]="community.id">{{ community.name }}</option>
+        }
+      </select>
+    </label>
+  }
+  <label>
+    状態
+    <select name="statusFilter" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+      <option value="all">すべて</option>
+      <option value="active">有効</option>
+      <option value="suspended">停止</option>
+    </select>
+  </label>
+  <label>
+    並び順
+    <select name="sortOrder" [ngModel]="sortOrder()" (ngModelChange)="sortOrder.set($event)">
+      <option value="newest">登録日の新しい順</option>
+      <option value="oldest">登録日の古い順</option>
+    </select>
+  </label>
+</form>
+
+@if (members() === undefined) {
+  <p class="placeholder">読み込み中...</p>
+} @else {
+  <p class="count">{{ filteredMembers().length }}件（全{{ scopeTotal() }}件）</p>
+
+  @if (filteredMembers().length === 0) {
+    <p class="placeholder">条件に一致する会員はいません。</p>
+  } @else {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>表示名</th>
+            <th>プロフィール</th>
+            <th>役職</th>
+            <th>ロール</th>
+            <th>推薦者</th>
+            <th>登録日</th>
+            <th>区分</th>
+            <th>状態</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (member of filteredMembers(); track member.id) {
+            <tr>
+              <td>
+                <a class="member-name" [routerLink]="scopes.link('members', member.id)">
+                  <app-member-avatar [photoPath]="member.photoPath" [name]="member.displayName" [text]="member.avatarText" [size]="28" />
+                  {{ member.displayName }}
+                </a>
+              </td>
+              <td class="profile-cell">{{ profileText(member) }}</td>
+              <td>{{ member.positionLevel }}</td>
+              <td>
+                @if (scopes.isCommunity()) {
+                  @if (isCommunityAdmin(member)) {
+                    <span class="role-badge admin">管理者</span>
+                  }
+                } @else {
+                  @if (member.roles.admin) {
+                    <span class="role-badge admin">管理者</span>
+                  }
+                  @if (member.roles.recommender) {
+                    <span class="role-badge recommender">推薦者</span>
+                  }
+                }
+              </td>
+              <td>{{ recommenderName(member) }}</td>
+              <td>{{ formatDate(member.createdAt) }}</td>
+              <td>
+                @if (!isFullMember(member)) {
+                  <span
+                    class="role-badge"
+                    [class.guest]="member.membership === 'guest'"
+                    [class.community]="member.membership === 'community'"
+                  >
+                    {{ membershipLabel(member.membership)
+                    }}{{ member.membershipApplication?.status === 'pending' ? '（審査待ち）' : '' }}
+                  </span>
+                } @else {
+                  <span class="role-badge member">会員</span>
+                }
+                @for (name of memberCommunityNames(member); track name) {
+                  <span class="role-badge community">{{ name }}</span>
+                }
+              </td>
+              <td>
+                @if (member.isActive) {
+                  <span class="status-badge active">有効</span>
+                } @else {
+                  <span class="status-badge suspended">停止</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+}

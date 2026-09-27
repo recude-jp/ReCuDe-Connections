@@ -1,0 +1,64 @@
+<form class="panel" (ngSubmit)="save()">
+  <label for="communityName">名称 <span class="required">必須</span></label>
+  <input
+    id="communityName"
+    name="name"
+    type="text"
+    maxlength="50"
+    [ngModel]="name()"
+    (ngModelChange)="name.set($event)"
+  />
+
+  <span class="label">ロゴ（任意）</span>
+  <div class="logo-row">
+    <app-community-logo [name]="name() || '？'" [logoUrl]="logoPreview()" [text]="logoText()" [size]="48" />
+    <input type="file" accept="image/*" aria-label="ロゴの画像" (change)="onLogoSelected($event)" />
+    @if (logoPreview()) {
+      <button type="button" class="link" (click)="clearLogo()">ロゴを外す</button>
+    }
+  </div>
+  <p class="hint">メンバーの画面のヘッダ（ルートコミュニティのロゴの横）と、招待から参加する画面に出ます。</p>
+
+  <label for="settingsLogoText">ロゴの代わりの文字（任意・2文字まで）</label>
+  <input
+    id="settingsLogoText"
+    name="logoText"
+    type="text"
+    class="logo-text"
+    placeholder="例: 岐北"
+    [ngModel]="logoText()"
+    (ngModelChange)="setLogoText($event)"
+  />
+  <p class="hint">ロゴが無いときに、丸いアイコンに出す文字です。2文字なら同じ大きさで並べます。空のときは名称の最初の1文字を出します。</p>
+
+  <label for="communityDescription">説明（任意）</label>
+  <textarea
+    id="communityDescription"
+    name="description"
+    rows="3"
+    maxlength="500"
+    [ngModel]="description()"
+    (ngModelChange)="description.set($event)"
+  ></textarea>
+
+  <div class="buttons">
+    <button type="submit" class="primary" [disabled]="processing() || !name().trim()">保存する</button>
+    @if (successMessage()) {
+      <span class="success">{{ successMessage() }}</span>
+    }
+  </div>
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+</form>
+
+<h2 class="section-title">管理者</h2>
+<p class="hint">任命・解除は、会員一覧からその人の会員詳細を開いて行います。</p>
+<p>
+  @for (admin of admins(); track admin.id) {
+    <a [routerLink]="scopes.link('members', admin.id)">{{ admin.name }}</a>
+    @if (!$last) {
+      、
+    }
+  }
+</p>

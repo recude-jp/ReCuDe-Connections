@@ -1,0 +1,17 @@
+<div class="pin-input">
+  @for (digit of digits(); track $index) {
+    <input
+      #digitInput
+      type="text"
+      inputmode="numeric"
+      autocomplete="off"
+      pattern="\d*"
+      maxlength="1"
+      class="pin-digit"
+      [value]="digit"
+      [disabled]="disabled()"
+      (input)="onDigitInput($index, $event)"
+      (keydown)="onKeydown($index, $event)"
+    />
+  }
+</div>

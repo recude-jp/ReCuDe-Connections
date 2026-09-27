@@ -1,0 +1,138 @@
+@use '../admin-layout/admin-shared';
+
+$accent: #0f766e;
+
+.intro {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  color: #57534e;
+}
+
+h2 {
+  font-size: 1rem;
+  margin: 24px 0 10px;
+  color: #44403c;
+}
+
+.format {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+
+  .label {
+    font-weight: 600;
+    color: #44403c;
+  }
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.hint {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: #78716c;
+}
+
+.body {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.body-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #78716c;
+
+  .link {
+    border: none;
+    background: none;
+    color: $accent;
+    font-size: 0.8rem;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}
+
+.agreement {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 0.9rem;
+}
+
+.agreement-preview {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+  color: #57534e;
+}
+
+.updated {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: #78716c;
+}
+
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 0;
+  background: #fff;
+  border-top: 1px solid #e7e5e4;
+
+  button {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  .primary {
+    border: none;
+    background: $accent;
+    color: #fff;
+  }
+
+  .secondary {
+    border: 1px solid #d6d3d1;
+    background: #fff;
+    color: #57534e;
+  }
+
+  .unsaved {
+    font-size: 0.8rem;
+    color: #854d0e;
+  }
+}
+
+.approval {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #ccfbf1;
+  border-radius: 8px;
+  background: #f0fdfa;
+}

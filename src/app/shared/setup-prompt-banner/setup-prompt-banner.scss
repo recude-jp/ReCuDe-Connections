@@ -1,0 +1,49 @@
+.setup-prompt-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  color: #065f46;
+
+  p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  a {
+    color: #047857;
+    font-weight: 600;
+  }
+
+  .setup-prompt-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .link-button {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #047857;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+
+  .close-button {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #065f46;
+  }
+}

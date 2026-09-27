@@ -1,0 +1,42 @@
+@if (scopes.isCommunity()) {
+  <p class="intro">
+    招待から「{{ scopes.name() }}」に参加した人の、参加の申請です（申請の古い順）。会員詳細でプロフィールを確認して承認してください。
+    @if (scopes.community()?.requireApproval !== true) {
+      <br />いまは参加に承認が要らない設定です（「会員条件」で、承認を必要にできます）。
+    }
+  </p>
+} @else {
+  <p class="intro">
+    ゲストから届いた、正規の会員の申請です（申請の古い順）。会員詳細でプロフィールを確認し、会費など会員の条件を満たしていれば承認してください。
+  </p>
+}
+
+@if (pending(); as list) {
+  @if (list.length === 0) {
+    <p class="placeholder">審査待ちの申請はありません。</p>
+  }
+  <ul class="applications">
+    @for (m of list; track m.id) {
+      <li>
+        <a [routerLink]="scopes.link('members', m.id)">
+          <app-member-avatar [photoPath]="m.photoPath" [name]="m.displayName" [text]="m.avatarText" [size]="40" />
+          <span class="body">
+            <strong>{{ m.displayName }}</strong>
+            <span class="meta">
+              {{ formatDate(applicationOf(m)!.submittedAt) }} 申請・招待: {{ inviterName(m) }}
+              @if (m.invitedVia === 'qr') {
+                （QRコード）
+              }
+            </span>
+            @if (profileText(m); as text) {
+              <span class="profile">{{ text }}</span>
+            }
+          </span>
+          <span class="open">審査する →</span>
+        </a>
+      </li>
+    }
+  </ul>
+} @else {
+  <p class="placeholder">読み込み中...</p>
+}

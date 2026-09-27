@@ -1,0 +1,82 @@
+<div class="list-page">
+  <app-connect-tabs />
+  <p class="back"><a routerLink="/connect" queryParamsHandling="preserve">← 招待（QRコード）</a></p>
+  <h2>招待の送付</h2>
+  <app-invite-target-picker (targetChange)="target.set($event)" />
+  <p class="placeholder">
+    @if (target()?.isCommunity) {
+      招待リンクを送ります。受け取った人はリンクから参加して「{{ target()!.name }}」のメンバーになり、あなたと1対1のトークができます。
+    } @else {
+      招待リンクを送ります。受け取った人はリンクから参加してゲストになり、あなたと1対1のトークができます。
+    }
+  </p>
+
+  <form (ngSubmit)="sendInvite()">
+    <label for="inviteName">名前 <span class="required">必須</span></label>
+    <input
+      id="inviteName"
+      name="name"
+      type="text"
+      maxlength="30"
+      placeholder="例: 岐阜花子"
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event)"
+    />
+
+    <span class="label">送り先</span>
+    <div class="destination">
+      <label>
+        <input
+          type="radio"
+          name="destination"
+          value="phone"
+          [ngModel]="destination()"
+          (ngModelChange)="destination.set($event)"
+        />
+        電話番号（SMS）
+      </label>
+      <label>
+        <input
+          type="radio"
+          name="destination"
+          value="email"
+          [ngModel]="destination()"
+          (ngModelChange)="destination.set($event)"
+        />
+        メールアドレス
+      </label>
+    </div>
+
+    @if (destination() === 'phone') {
+      <input
+        id="invitePhone"
+        name="phone"
+        type="tel"
+        aria-label="電話番号"
+        placeholder="09012345678"
+        [ngModel]="phoneNumber()"
+        (ngModelChange)="phoneNumber.set($event)"
+      />
+    } @else {
+      <input
+        id="inviteEmail"
+        name="email"
+        type="email"
+        aria-label="メールアドレス"
+        placeholder="hanako@example.com"
+        [ngModel]="email()"
+        (ngModelChange)="email.set($event)"
+      />
+      <p class="hint">メールで招待された人も、参加するときは電話番号（SMSの認証コード）でログインします。</p>
+    }
+
+    <button type="submit" [disabled]="loading() || !canSend()">招待を送る</button>
+  </form>
+
+  @if (successMessage()) {
+    <p class="success">{{ successMessage() }}</p>
+  }
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+</div>

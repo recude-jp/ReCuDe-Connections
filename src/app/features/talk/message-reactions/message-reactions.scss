@@ -1,0 +1,31 @@
+$accent: #0f766e;
+
+:host {
+  display: contents;
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.reaction-chip {
+  padding: 1px 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  span {
+    font-size: 0.75rem;
+    color: #57534e;
+  }
+
+  &.mine {
+    border-color: $accent;
+    background: #f0fdfa;
+  }
+}

@@ -1,0 +1,25 @@
+@if (options(); as opts) {
+  @if (opts.length > 1) {
+    <fieldset class="targets">
+      <legend>招待先</legend>
+      @for (option of opts; track option.key) {
+        <button
+          type="button"
+          class="target"
+          [class.active]="selected()?.key === option.key"
+          [attr.aria-pressed]="selected()?.key === option.key"
+          (click)="choose(option.key)"
+        >
+          <app-community-logo [name]="option.name" [logoUrl]="option.logoUrl" [text]="option.logoText" [size]="24" />
+          <span>{{ option.name }}</span>
+        </button>
+      }
+    </fieldset>
+  } @else if (selected(); as s) {
+    <p class="single">
+      招待先:
+      <app-community-logo [name]="s.name" [logoUrl]="s.logoUrl" [text]="s.logoText" [size]="20" />
+      <strong>{{ s.name }}</strong>
+    </p>
+  }
+}

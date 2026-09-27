@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // その連携コミュニティの管理者(カスタムクレーム adminCommunityIds)か、テナントの管理者。
+    function isCommunityAdmin(tenantId, communityId) {
+      return request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && (request.auth.token.isAdmin == true
+          || communityId in request.auth.token.get('adminCommunityIds', []));
+    }
+
+    // テナントのロゴ画像。ログイン前の画面での表示も見込み公開読み取りとし、
+    // 書き込みは当該テナントの管理者(管理者ロールを持つ会員)のみに限定する。
+    match /tenants/{tenantId}/branding/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.token.isAdmin == true
+        && request.auth.token.tenantId == tenantId
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // 連携コミュニティのロゴ。参加の画面(ログイン前)にも出すため公開読み取りとし、
+    // 書き込みはテナントの管理者と、その連携コミュニティの管理者だけ。
+    match /tenants/{tenantId}/communities/{communityId}/{fileName} {
+      allow read: if true;
+      allow write: if isCommunityAdmin(tenantId, communityId)
+        && fileName == 'logo'
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isCommunityAdmin(tenantId, communityId);
+    }
+
+    // コミュニティのスタンプの画像(管理 A2)。メッセージの中でそのまま表示し、長期間キャッシュするため公開読み取りとする
+    // (パス・IDは推測できない)。登録はパックのコミュニティの管理者だけで(ルートのパックはテナントの管理者)、
+    // 上書き・削除はしない(送信済みのメッセージが画像を探すため)。
+    match /tenants/{tenantId}/stampPacks/{packId}/{stampId} {
+      function packScope() {
+        return firestore.get(/databases/(default)/documents/tenants/$(tenantId)/stampPacks/$(packId)).data.scope;
+      }
+
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && (request.auth.token.isAdmin == true
+          || (packScope().type == 'community' && isCommunityAdmin(tenantId, packScope().communityId)))
+        && request.resource.contentType in ['image/webp', 'image/png']
+        && request.resource.size < 512 * 1024;
+      allow update, delete: if false;
+    }
+
+    // トークの画像(SPEC 5-5)。ルームのメンバーだけが読み書きできる(Firestoreのルームの memberIds を参照する)。
+    // 画像は端末でJPEGに変換・縮小してから上げるため、JPEGだけを10MBまで受け付ける。上書きはできない。
+    match /tenants/{tenantId}/rooms/{roomId}/media/{messageId}/{fileName} {
+      function isRoomMember() {
+        return request.auth != null
+          && request.auth.token.tenantId == tenantId
+          && request.auth.token.memberId in
+            firestore.get(/databases/(default)/documents/tenants/$(tenantId)/rooms/$(roomId)).data.memberIds;
+      }
+
+      allow read: if isRoomMember();
+      allow create: if isRoomMember()
+        && fileName in ['original.jpg', 'thumb.jpg']
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size < 10 * 1024 * 1024;
+      allow update, delete: if false;
+    }
+
+    // マイスタンプの画像。メッセージの中で表示するため、同じテナントの会員なら誰でも読める。
+    // 登録・削除は本人だけ。端末で320×320以内に縮小してから上げるため、512KBまでとする。
+    match /tenants/{tenantId}/members/{memberId}/stamps/{stampId} {
+      allow read: if request.auth != null && request.auth.token.tenantId == tenantId;
+      allow create: if request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && request.auth.token.memberId == memberId
+        && request.resource.contentType in ['image/webp', 'image/png']
+        && request.resource.size < 512 * 1024;
+      allow delete: if request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && request.auth.token.memberId == memberId;
+      allow update: if false;
+    }
+
+    // プロフィール画像。同じテナントの会員なら誰でも読める。上げる・消すのは本人だけ。
+    // 端末で正方形・256pxのJPEGにしてから上げるため、1MBまでとする。差し替えるたびに別の名前で上げ、
+    // 会員ドキュメントへの反映(と古い画像の削除)は Cloud Functions の updateMyProfile で行う。
+    match /tenants/{tenantId}/members/{memberId}/photo/{fileName} {
+      allow read: if request.auth != null && request.auth.token.tenantId == tenantId;
+      allow create: if request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && request.auth.token.memberId == memberId
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size < 1024 * 1024;
+      allow delete: if request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && request.auth.token.memberId == memberId;
+      allow update: if false;
+    }
+
+    // それ以外は全面的にアクセスを拒否する。
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

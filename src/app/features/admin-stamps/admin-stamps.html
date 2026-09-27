@@ -1,0 +1,33 @@
+<p class="intro">
+  このコミュニティ専用のスタンプを登録します。会員はトークのスタンプパネルで、自分が使えるコミュニティのスタンプを送れます。
+  パックは非公開で作られます。スタンプを登録してから「会員に公開する」にして保存してください。
+</p>
+
+<p class="note">{{ note() }}</p>
+
+@if (packs() === undefined) {
+  <p class="placeholder">読み込み中...</p>
+} @else {
+  @for (pack of scopePacks(); track pack.id) {
+    <app-admin-stamp-pack [pack]="pack" [tenantId]="scopes.tenantId()" />
+  } @empty {
+    <p class="placeholder">「{{ scopes.name() }}」のスタンプのパックはまだありません。</p>
+  }
+}
+
+<form class="new-pack" (ngSubmit)="createPack()">
+  <label for="newPackName">新しいパック</label>
+  <input
+    id="newPackName"
+    name="newPackName"
+    type="text"
+    maxlength="20"
+    placeholder="例: 同窓会スタンプ"
+    [ngModel]="newPackName()"
+    (ngModelChange)="newPackName.set($event)"
+  />
+  <button type="submit" class="primary" [disabled]="processing() || !newPackName().trim()">パックを作る</button>
+</form>
+@if (errorMessage()) {
+  <p class="error">{{ errorMessage() }}</p>
+}

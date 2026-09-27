@@ -1,0 +1,44 @@
+@use '../admin-layout/admin-shared';
+
+$accent: #0f766e;
+
+.intro,
+.note {
+  font-size: 0.85rem;
+  color: #57534e;
+}
+
+.new-pack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #d6d3d1;
+
+  label {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  input {
+    padding: 6px 10px;
+    border: 1px solid #d6d3d1;
+    border-radius: 8px;
+    font: inherit;
+  }
+
+  button {
+    padding: 6px 14px;
+    border: 1px solid $accent;
+    border-radius: 8px;
+    background: $accent;
+    color: #fff;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+    }
+  }
+}

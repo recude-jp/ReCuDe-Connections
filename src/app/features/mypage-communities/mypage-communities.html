@@ -1,0 +1,59 @@
+@for (row of applications(); track row.community.id) {
+  <p class="application" [class.rejected]="row.application!.status === 'rejected'">
+    <app-community-logo [name]="row.community.name" [logoUrl]="row.community.logoUrl" [text]="row.community.logoText" [size]="24" />
+    @if (row.application!.status === 'pending') {
+      「{{ row.community.name }}」への参加を申請中です（{{ formatDate(row.application!.submittedAt) }}）。管理者が承認すると、メンバーになります。
+    } @else {
+      「{{ row.community.name }}」への参加の申請は承認されませんでした。
+      @if (row.application!.rejectReason) {
+        理由: {{ row.application!.rejectReason }}
+      }
+    }
+  </p>
+}
+
+@if (successMessage()) {
+  <p class="success">{{ successMessage() }}</p>
+}
+
+@for (community of joined(); track community.id) {
+  @if (fieldsOf(community).length > 0) {
+    <section class="community">
+      <h2>
+        <app-community-logo [name]="community.name" [logoUrl]="community.logoUrl" [text]="community.logoText" [size]="28" />
+        {{ community.name }}のプロフィール
+      </h2>
+      @if (editingId() === community.id) {
+        <form (submit)="$event.preventDefault(); save(community)">
+          <app-profile-form
+            [idPrefix]="'community-' + community.id"
+            [fields]="fieldsOf(community)"
+            [options]="options()"
+            [(values)]="draft"
+          />
+          @if (errorMessage()) {
+            <p class="error">{{ errorMessage() }}</p>
+          }
+          <div class="actions">
+            <button type="submit" [disabled]="saving() || missing(community).length > 0">保存する</button>
+            <button type="button" class="secondary" [disabled]="saving()" (click)="editingId.set(null)">やめる</button>
+          </div>
+        </form>
+      } @else {
+        <dl>
+          @for (field of fieldsOf(community); track field.id) {
+            <dt>{{ field.label }}</dt>
+            <dd>
+              {{ formatValue(valuesOf(community)[field.id], field) || '—' }}
+              @if (field.type === 'derived') {
+                <span class="note">自動</span>
+              }
+            </dd>
+          }
+        </dl>
+        <p class="hint">「{{ community.name }}」のメンバーと管理者に向けた項目です。</p>
+        <button type="button" class="edit" (click)="startEdit(community)">編集する</button>
+      }
+    </section>
+  }
+}

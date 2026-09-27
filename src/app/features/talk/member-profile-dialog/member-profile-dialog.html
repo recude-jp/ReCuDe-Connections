@@ -1,0 +1,70 @@
+<div class="backdrop" (click)="closed.emit()"></div>
+<section class="dialog" role="dialog" aria-modal="true" aria-labelledby="member-profile-title">
+  <button type="button" class="close" aria-label="閉じる" (click)="closed.emit()">×</button>
+
+  @if (member(); as m) {
+    <div class="head">
+      <app-member-avatar [photoPath]="m.photoPath" [name]="m.displayName" [text]="m.avatarText" [size]="88" />
+      <h2 id="member-profile-title">{{ m.displayName }}</h2>
+      @if (m.positionLevel && m.positionLevel !== '一般会員') {
+        <span class="position">{{ m.positionLevel }}</span>
+      }
+      @if (memberCommunities().length > 0) {
+        <p class="communities">
+          @for (community of memberCommunities(); track community.id) {
+            <span>{{ community.name }}</span>
+          }
+        </p>
+      }
+    </div>
+
+    @if (profileItems().length > 0) {
+      <dl class="profile">
+        @for (item of profileItems(); track item.label) {
+          <dt>{{ item.label }}</dt>
+          <dd>{{ item.value }}</dd>
+        }
+      </dl>
+    } @else {
+      <p class="empty">プロフィールはまだ登録されていません。</p>
+    }
+
+    <div class="talk">
+      @switch (state().kind) {
+        @case ('accepted') {
+          <button type="button" class="primary" (click)="openTalk($any(state()).connectionId)">1対1のトークを開く</button>
+        }
+        @case ('pendingReceived') {
+          <button type="button" class="primary" [disabled]="processing()" (click)="acceptAndOpen($any(state()).connectionId)">
+            つながり申請を承認して、1対1のトークを始める
+          </button>
+          <p class="note">{{ m.displayName }}さんから、つながり申請が届いています。</p>
+        }
+        @case ('pendingSent') {
+          <button type="button" class="primary" disabled>つながり申請中</button>
+          <p class="note">{{ m.displayName }}さんが承認すると、1対1のトークができるようになります。</p>
+        }
+        @case ('none') {
+          @if (cannotRequestReason(); as reason) {
+            <p class="note">{{ reason }}</p>
+          } @else {
+            <button type="button" class="primary" [disabled]="processing()" (click)="sendRequest()">
+              つながり申請を送って、1対1のトークを始める
+            </button>
+            <p class="note">1対1のトークは、つながった人とできます。{{ m.displayName }}さんが承認すると始まります。</p>
+          }
+        }
+      }
+      @if (successMessage()) {
+        <p class="success">{{ successMessage() }}</p>
+      }
+      @if (errorMessage()) {
+        <p class="error">{{ errorMessage() }}</p>
+      }
+    </div>
+  } @else if (member() === undefined) {
+    <p class="empty">読み込み中...</p>
+  } @else {
+    <p class="empty">この方は見つかりません（退出した可能性があります）。</p>
+  }
+</section>

@@ -1,0 +1,141 @@
+@if (scopes.isCommunity()) {
+  <p class="intro">
+    「{{ scopes.name() }}」独自のプロフィールの項目を設定します（例: 卒業年・部活動）。ルートコミュニティの項目に加えて、メンバーがマイページで入力します。連携コミュニティの項目は非公開にできません。
+  </p>
+} @else {
+  <p class="intro">
+    会員が入力するプロフィールの項目を設定します。会員のマイページ・候補者の登録画面・つながるの会員検索に反映されます。
+  </p>
+
+  <section class="fixed">
+    <h2>固定の項目（全テナント共通）</h2>
+    <ul>
+      <li><strong>名前</strong><span>必須</span></li>
+      <li><strong>プロフィール画像</strong><span>任意（マイページで設定）</span></li>
+    </ul>
+  </section>
+}
+
+<h2>{{ scopes.isCommunity() ? 'この連携コミュニティの項目' : 'このテナントの項目' }}（{{ drafts()?.length ?? 0 }} / {{ limit }}）</h2>
+
+@if (drafts(); as list) {
+  @for (field of list; track field.id; let i = $index; let first = $first; let last = $last) {
+    <div class="field-card" [class.hidden-field]="field.hidden">
+      <div class="field-row">
+        <label>
+          項目名
+          <input
+            type="text"
+            maxlength="20"
+            placeholder="例: 出身地"
+            [ngModel]="field.label"
+            (ngModelChange)="update(i, { label: $event })"
+          />
+        </label>
+        <label>
+          入力方法
+          <select [ngModel]="field.type" (ngModelChange)="update(i, { type: $event })">
+            @for (type of types; track type) {
+              <option [value]="type">{{ typeLabels[type] }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      @if (field.type === 'derived') {
+        <div class="field-row derive">
+          <label>
+            コンバーター
+            <select [ngModel]="field.derive?.converter ?? 'ageGroup'" (ngModelChange)="setDerive(i, { converter: $event })">
+              @for (c of converters; track c.id) {
+                <option [value]="c.id">{{ c.label }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            変換元の項目
+            <select [ngModel]="field.derive?.source ?? ''" (ngModelChange)="setDerive(i, { source: $event })">
+              <option value="">選んでください</option>
+              @for (source of sourceCandidates(field.derive?.converter, field.id); track source.id) {
+                <option [value]="source.id">{{ source.label || '（名前なし）' }}</option>
+              }
+            </select>
+          </label>
+        </div>
+        <p class="hint">
+          会員は入力せず、変換元の項目から自動で決まります（保存したとき・毎月1日に計算し直します）。
+          @if (sourceCandidates(field.derive?.converter, field.id).length === 0) {
+            先に「年月」の項目（例: 生年月）を追加してください。
+          }
+        </p>
+      }
+
+      @if (field.type === 'select') {
+        <label class="options">
+          選択肢（1行に1つ）
+          <textarea
+            rows="4"
+            placeholder="20代&#10;30代&#10;40代"
+            [ngModel]="field.optionsText"
+            (ngModelChange)="update(i, { optionsText: $event })"
+          ></textarea>
+        </label>
+      }
+
+      <div class="flags">
+        @if (field.type !== 'derived') {
+          <label>
+            <input type="checkbox" [ngModel]="!!field.required" (ngModelChange)="update(i, { required: $event })" />
+            必須
+          </label>
+          @if (!scopes.isCommunity()) {
+            <label title="本人と管理者だけが見られます。他の会員には見えず、検索の条件にもできません。">
+              <input type="checkbox" [ngModel]="!!field.private" (ngModelChange)="update(i, { private: $event })" />
+              非公開（本人と管理者だけ）
+            </label>
+          }
+        }
+        @if (!field.private && field.type !== 'yearMonth') {
+          <label>
+            <input type="checkbox" [ngModel]="!!field.searchable" (ngModelChange)="update(i, { searchable: $event })" />
+            会員検索の条件に使う
+          </label>
+        }
+        <label>
+          <input type="checkbox" [ngModel]="!!field.hidden" (ngModelChange)="update(i, { hidden: $event })" />
+          使わない（非表示）
+        </label>
+      </div>
+
+      <div class="field-actions">
+        <button type="button" [disabled]="first" aria-label="上へ" (click)="move(i, -1)">↑</button>
+        <button type="button" [disabled]="last" aria-label="下へ" (click)="move(i, 1)">↓</button>
+        <button type="button" class="danger" (click)="remove(i)">削除</button>
+        @if (field.isNew) {
+          <span class="new">追加（未保存）</span>
+        }
+      </div>
+    </div>
+  } @empty {
+    <p class="placeholder">項目はまだありません。会員は名前とプロフィール画像だけを登録します。</p>
+  }
+
+  <button type="button" class="add" [disabled]="list.length >= limit" (click)="add()">＋ 項目を追加</button>
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+  @if (successMessage()) {
+    <p class="success">{{ successMessage() }}</p>
+  }
+
+  <div class="save-bar">
+    <button type="button" class="primary" [disabled]="saving() || !dirty()" (click)="save()">保存する</button>
+    <button type="button" class="secondary" [disabled]="saving() || !dirty()" (click)="discard()">変更を取り消す</button>
+    @if (dirty()) {
+      <span class="unsaved">保存していない変更があります</span>
+    }
+  </div>
+} @else {
+  <p class="placeholder">読み込み中...</p>
+}

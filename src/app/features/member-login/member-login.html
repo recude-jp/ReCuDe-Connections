@@ -1,0 +1,63 @@
+<div class="login-page">
+  @if (siteTitle(); as title) {
+    @if (logoUrl()) {
+      <img [src]="logoUrl()" [alt]="title + ' ロゴ'" class="site-logo" />
+    }
+      <div class="title">{{ title }}</div>
+      <div class="subtitle"> 会員ログイン</div>
+  }
+
+  @if (step() === 'phone') {
+    <form (ngSubmit)="sendOtp()">
+      <label for="phone">電話番号</label>
+      <input
+        id="phone"
+        name="phone"
+        type="tel"
+        [ngModel]="phoneNumber()"
+        (ngModelChange)="phoneNumber.set($event)"
+        required
+      />
+      <button type="submit" [disabled]="loading() || !phoneNumber()">認証コードを送信</button>
+    </form>
+
+    @if (passkeySupported()) {
+      <button type="button" [disabled]="loading()" (click)="signInWithPasskey()">パスキーでログイン</button>
+    }
+    @if (pinSupported()) {
+      <button type="button" [disabled]="loading()" (click)="startPinLogin()">PINでログイン</button>
+    }
+  }
+
+  @if (step() === 'otp') {
+    <form (ngSubmit)="confirmOtp()">
+      <label>認証コード</label>
+      <app-pin-input
+        [value]="otpCode()"
+        [disabled]="loading()"
+        (valueChange)="otpCode.set($event)"
+        (completed)="confirmOtp()"
+      />
+      <button type="submit" [disabled]="loading() || otpCode().length !== 6">ログイン</button>
+    </form>
+  }
+
+  @if (step() === 'pin') {
+    <form (ngSubmit)="signInWithPin()">
+      <label>PIN</label>
+      <app-pin-input
+        [value]="pinCode()"
+        [disabled]="loading()"
+        (valueChange)="pinCode.set($event)"
+        (completed)="signInWithPin()"
+      />
+      <button type="submit" [disabled]="loading() || pinCode().length !== 6">ログイン</button>
+    </form>
+  }
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  <div id="recaptcha-container"></div>
+</div>

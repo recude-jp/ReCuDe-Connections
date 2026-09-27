@@ -1,0 +1,52 @@
+$accent: #0f766e;
+
+.targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: none;
+
+  legend {
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    color: #57534e;
+  }
+}
+
+.target {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 12px 6px 6px;
+  border: 1px solid #d6d3d1;
+  border-radius: 999px;
+  background: #fff;
+  color: #44403c;
+  font-size: 0.9rem;
+  cursor: pointer;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &.active {
+    border-color: $accent;
+    background: #f0fdfa;
+    color: $accent;
+    font-weight: 700;
+  }
+}
+
+.single {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: #57534e;
+}

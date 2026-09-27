@@ -1,0 +1,55 @@
+{
+  "packId": "luka",
+  "name": "ルカ（共通スタンプ）",
+  "version": 1,
+  "stamps": [
+    {
+      "id": "hajimemashite",
+      "text": "はじめまして",
+      "path": "stamps/luka/hajimemashite_v1.webp",
+      "animated": false
+    },
+    {
+      "id": "yoroshiku",
+      "text": "よろしくお願いします",
+      "path": "stamps/luka/yoroshiku_v1.webp",
+      "animated": false
+    },
+    {
+      "id": "arigatou",
+      "text": "ありがとうございます",
+      "path": "stamps/luka/arigatou_v1.webp",
+      "animated": false
+    },
+    {
+      "id": "ryoukai",
+      "text": "了解です！",
+      "path": "stamps/luka/ryoukai_v1.webp",
+      "animated": false
+    },
+    {
+      "id": "goshoukai",
+      "text": "ご紹介します",
+      "path": "stamps/luka/goshoukai_v1.webp",
+      "animated": false
+    },
+    {
+      "id": "sanka",
+      "text": "参加します！",
+      "path": "stamps/luka/sanka_v1.webp",
+      "animated": false
+    },
+    {
+      "id": "otsukare",
+      "text": "おつかれさまです",
+      "path": "stamps/luka/otsukare_v1.webp",
+      "animated": false
+    },
+    {
+      "id": "tsunagari",
+      "text": "つながりましょう",
+      "path": "stamps/luka/tsunagari_v1.webp",
+      "animated": false
+    }
+  ]
+}

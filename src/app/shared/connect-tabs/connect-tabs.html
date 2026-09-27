@@ -1,0 +1,9 @@
+<h1>つながる</h1>
+<nav class="tabs">
+  @if (canInvite()) {
+    <a routerLink="/connect" [class.active]="isInvite()" [attr.aria-current]="isInvite() ? 'page' : null">招待</a>
+  }
+  <a routerLink="/connect/search" [class.active]="isSearch()" [attr.aria-current]="isSearch() ? 'page' : null">
+    出会いを探す
+  </a>
+</nav>

@@ -1,0 +1,125 @@
+<div class="talk" [class.has-detail]="hasDetail()">
+  <aside class="sidebar" aria-label="トーク一覧">
+    <div class="sidebar-header">
+      <h1>トーク</h1>
+      @if (!isGuest()) {
+        <a class="new-group" routerLink="/talk/new-group" routerLinkActive="active">
+          <fa-icon [icon]="icons.plus" />
+          <span>グループを作る</span>
+        </a>
+      }
+    </div>
+
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+
+    @if (isGuest()) {
+      <p class="guest-note">
+        ゲストの間は、招待してくれた方との1対1のトークができます。グループへの参加は、<a routerLink="/mypage/membership">会員登録</a>して正規の会員になるとできるようになります。
+      </p>
+    }
+
+    @if (!isGuest() && invitations().length > 0) {
+      <section>
+        <h2>グループ招待</h2>
+        <ul class="invitations">
+          @for (invitation of invitations(); track invitation.id) {
+            <li>
+              <div class="invitation-text">
+                <strong>{{ invitation.roomName }}</strong>
+                <span>{{ invitation.invitedByName }}さんからの招待</span>
+              </div>
+              <div class="invitation-actions">
+                <button
+                  type="button"
+                  class="accept"
+                  [disabled]="respondingRoomId() === invitation.id"
+                  (click)="respond(invitation.id, true)"
+                >
+                  参加する
+                </button>
+                <button
+                  type="button"
+                  class="decline"
+                  [disabled]="respondingRoomId() === invitation.id"
+                  (click)="respond(invitation.id, false)"
+                >
+                  断る
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (threads() === undefined) {
+      <p class="placeholder">読み込み中...</p>
+    } @else {
+      @if (!isGuest()) {
+      <section>
+        <h2>グループ</h2>
+        <ul class="threads">
+          @for (thread of groupThreads(); track thread.id) {
+            <li>
+              <a [routerLink]="['/talk/rooms', thread.id]" routerLinkActive="active">
+                <span class="avatar-wrap">
+                  <span class="avatar group"><fa-icon [icon]="icons.group" /></span>
+                  <app-count-badge [count]="thread.unreadCount" label="未読" />
+                </span>
+                <span class="thread-body">
+                  <span class="thread-title">{{ thread.title }}</span>
+                  <span class="thread-last">{{ thread.lastMessageText || 'まだメッセージはありません' }}</span>
+                </span>
+                <span class="thread-side">
+                  <span class="thread-time">{{ formatTime(thread.lastMessageAt) }}</span>
+                </span>
+              </a>
+            </li>
+          } @empty {
+            <li class="empty">参加しているグループはありません。</li>
+          }
+        </ul>
+      </section>
+      }
+
+      <section>
+        <h2>1対1</h2>
+        <ul class="threads">
+          @for (thread of directThreads(); track thread.id) {
+            <li>
+              <a [routerLink]="['/talk/rooms', thread.id]" routerLinkActive="active">
+                <!-- 相手のプロフィール画像。未登録なら名前の最初の1文字(トークのメッセージと同じ)。 -->
+                <span class="avatar-wrap">
+                  <app-member-avatar
+                    [photoPath]="thread.otherMemberId ? avatars().get(thread.otherMemberId)?.photoPath : null"
+                    [name]="thread.title"
+                    [text]="thread.otherMemberId ? avatars().get(thread.otherMemberId)?.text : null"
+                    [size]="40"
+                  />
+                  <app-count-badge [count]="thread.unreadCount" label="未読" />
+                </span>
+                <span class="thread-body">
+                  <span class="thread-title">{{ thread.title }}</span>
+                  <span class="thread-last">{{ thread.lastMessageText || 'まだメッセージはありません' }}</span>
+                </span>
+                <span class="thread-side">
+                  <span class="thread-time">{{ formatTime(thread.lastMessageAt) }}</span>
+                </span>
+              </a>
+            </li>
+          } @empty {
+            <li class="empty">
+              まだ1対1のトークはありません。<a routerLink="/connect/search">出会いを探す</a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  </aside>
+
+  <section class="detail">
+    <router-outlet />
+  </section>
+</div>

@@ -1,0 +1,144 @@
+<div class="login-page">
+  @if (preview()?.community; as c) {
+    <div class="community">
+      <app-community-logo [name]="c.name" [logoUrl]="c.logoUrl" [text]="c.logoText" [size]="48" />
+      <div>
+        <h1>{{ c.name }}に参加</h1>
+        <p class="service">{{ preview()!.serviceName }}の連携コミュニティ</p>
+      </div>
+    </div>
+  } @else {
+    <h1>{{ preview()?.serviceName || '招待' }}に参加</h1>
+  }
+
+  @if (preview(); as p) {
+    <p class="invited-by">{{ p.tenantName }} ／ <strong>{{ p.inviterName }}</strong>さんからの招待</p>
+    @if (p.community?.description) {
+      <p class="description">{{ p.community!.description }}</p>
+    }
+  }
+  @if (step() !== 'confirm' && step() !== 'submitted') {
+    <p class="placeholder">
+      @if (preview()?.community; as c) {
+        @if (c.requireApproval) {
+          電話番号でログインして参加を申請すると、「{{ c.name }}」の管理者が承認したあとにメンバーになります。招待してくれた方とは、すぐに1対1のトークができます。
+        } @else {
+          電話番号でログインすると、「{{ c.name }}」のメンバーとして参加できます。招待してくれた方と1対1のトークができます。
+        }
+        すでにアカウントがある方も、このリンクから参加すると所属に加わります。
+      } @else {
+        電話番号でログインすると、ゲストとして参加できます。招待してくれた方と1対1のトークができ、
+        あとからマイページの「会員登録」で正規の会員を申請できます。
+      }
+    </p>
+  }
+
+  @if (step() === 'phone') {
+    <form (ngSubmit)="sendOtp()">
+      <label for="phone">電話番号</label>
+      <input
+        id="phone"
+        name="phone"
+        type="tel"
+        placeholder="09012345678"
+        [ngModel]="phoneNumber()"
+        (ngModelChange)="phoneNumber.set($event)"
+        required
+      />
+      <button type="submit" [disabled]="loading() || !phoneNumber()">認証コードを送信</button>
+    </form>
+  }
+
+  @if (step() === 'otp') {
+    <form (ngSubmit)="confirmOtp()">
+      <label>認証コード</label>
+      <app-pin-input
+        [value]="otpCode()"
+        [disabled]="loading()"
+        (valueChange)="otpCode.set($event)"
+        (completed)="confirmOtp()"
+      />
+      <button type="submit" [disabled]="loading() || otpCode().length !== 6">確認</button>
+    </form>
+  }
+
+  @if ((step() === 'name' || step() === 'confirm') && !preview()?.alreadyInTarget && !preview()?.pendingApproval) {
+    @if (preview()?.community?.terms; as terms) {
+      <h2 class="terms-title">参加の条件</h2>
+      <app-membership-terms [format]="terms.format" [body]="terms.body" />
+      @if (terms.requireAgreement) {
+        <label class="agreement">
+          <input type="checkbox" [checked]="agreed()" (change)="agreed.set($any($event.target).checked)" />
+          参加の条件を確認し、同意します
+        </label>
+      }
+    }
+  }
+
+  @if (step() === 'name') {
+    <form (ngSubmit)="join()">
+      <label for="displayName">お名前 <span class="required">必須</span></label>
+      <input
+        id="displayName"
+        name="displayName"
+        type="text"
+        maxlength="30"
+        [ngModel]="displayName()"
+        (ngModelChange)="displayName.set($event)"
+        required
+      />
+      <button type="submit" [disabled]="loading() || !displayName().trim() || needsAgreement()">
+        {{
+          preview()?.community
+            ? preview()!.community!.requireApproval
+              ? '参加を申請する'
+              : 'メンバーとして参加する'
+            : 'ゲストとして参加する'
+        }}
+      </button>
+    </form>
+  }
+
+  @if (step() === 'confirm') {
+    <form (ngSubmit)="join()">
+      @if (preview()?.alreadyInTarget) {
+        <p class="placeholder">すでに参加しています。</p>
+        <button type="submit" [disabled]="loading()">トークを開く</button>
+      } @else if (preview()?.pendingApproval) {
+        <p class="placeholder">参加の申請は審査中です。管理者が承認すると、メンバーになります。</p>
+        <button type="submit" [disabled]="loading()">トークを開く</button>
+      } @else if (preview()?.community; as c) {
+        <p class="placeholder">
+          @if (c.requireApproval) {
+            「{{ c.name }}」への参加を申請します。管理者が承認すると、お使いのアカウントに加わります（ほかの所属はそのままです）。
+          } @else {
+            お使いのアカウントに「{{ c.name }}」が加わります（ほかの所属はそのままです）。
+          }
+        </p>
+        <button type="submit" [disabled]="loading() || needsAgreement()">
+          {{ c.requireApproval ? '「' + c.name + '」への参加を申請する' : '「' + c.name + '」に参加する' }}
+        </button>
+      }
+    </form>
+  }
+
+  @if (step() === 'submitted') {
+    <div class="submitted">
+      <p><strong>参加を申請しました。</strong></p>
+      <p class="placeholder">
+        「{{ preview()?.community?.name }}」の管理者が承認すると、メンバーになります。それまでも、招待してくれた方とは1対1のトークができます。
+      </p>
+      <button type="button" (click)="openTalk()">トークを開く</button>
+    </div>
+  }
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  @if (step() !== 'confirm' && step() !== 'submitted') {
+    <p class="login-link">すでに参加している方は <a routerLink="/login">ログイン</a></p>
+  }
+
+  <div id="recaptcha-container"></div>
+</div>

@@ -1,0 +1,106 @@
+<div class="list-page">
+  <app-connect-tabs />
+
+  <form (ngSubmit)="search()">
+    <label for="category">検索条件</label>
+    <select
+      id="category"
+      name="category"
+      [ngModel]="category()"
+      (ngModelChange)="onCategoryChange($event)"
+    >
+      <option value="">すべて表示</option>
+      @for (field of searchableFields(); track field.id) {
+        <option [value]="field.id">{{ field.label }}</option>
+      }
+    </select>
+
+    @if (selectedField(); as field) {
+      <label for="value">{{ field.label }}</label>
+      <input
+        id="value"
+        name="value"
+        type="text"
+        list="value-options"
+        [ngModel]="value()"
+        (ngModelChange)="value.set($event)"
+      />
+      <datalist id="value-options">
+        @for (option of valueOptions(); track option) {
+          <option [value]="option"></option>
+        }
+      </datalist>
+    }
+
+    <button type="submit" [disabled]="loading()">検索</button>
+  </form>
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  @if (results(); as members) {
+    @if (members.length === 0) {
+      <p class="placeholder">条件に一致する会員が見つかりませんでした。</p>
+    }
+    @for (member of members; track member.id) {
+      <div class="invite-item">
+        <div class="member-head">
+          <app-member-avatar [photoPath]="member.photoPath" [name]="member.displayName" [text]="member.avatarText" [size]="40" />
+          <span class="invite-phone">{{ member.displayName }}</span>
+        </div>
+
+        <div class="profile-summary">
+          @for (item of profileItems(member); track item.label) {
+            <span class="profile-item">{{ item.label }}: {{ item.value }}</span>
+          }
+        </div>
+
+        <div class="button-row">
+          @let state = connectionState(member.id);
+          @switch (state.kind) {
+            @case ('none') {
+              @if (isGuest()) {
+                <span class="guest-note">コネクト申請は、会員登録して正規の会員になるとできます。</span>
+              } @else {
+              <button
+                type="button"
+                class="approve"
+                [disabled]="requestingId() === member.id"
+                (click)="sendRequest(member.id)"
+              >
+                コネクト申請を送る
+              </button>
+              }
+            }
+            @case ('pendingSent') {
+              <span class="status-badge status-submitted">承認待ち</span>
+            }
+            @case ('pendingReceived') {
+              <span class="status-badge status-submitted">あなたへの申請があります</span>
+              <button
+                type="button"
+                class="approve"
+                [disabled]="requestingId() === member.id"
+                (click)="respond(state.connectionId, member.id, true)"
+              >
+                承認する
+              </button>
+              <button
+                type="button"
+                class="reject"
+                [disabled]="requestingId() === member.id"
+                (click)="respond(state.connectionId, member.id, false)"
+              >
+                断る
+              </button>
+            }
+            @case ('accepted') {
+              <span class="status-badge status-approved">つながっています</span>
+            }
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

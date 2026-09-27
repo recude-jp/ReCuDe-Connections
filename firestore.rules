@@ -1,0 +1,280 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function tokenTenantId() {
+      return request.auth.token.tenantId;
+    }
+
+    function isMember(tenantId) {
+      return isSignedIn() && tokenTenantId() == tenantId;
+    }
+
+    function isRecommender(tenantId) {
+      return isMember(tenantId) && request.auth.token.isRecommender == true;
+    }
+
+    // 管理者 = 管理者ロール(roles.admin)を持つ会員。isAdminクレームはCloud Functionsが会員ドキュメントから設定する。
+    function isSelf(tenantId, memberId) {
+      return isMember(tenantId) && request.auth.token.memberId == memberId;
+    }
+
+    function isAdmin(tenantId) {
+      return isMember(tenantId) && request.auth.token.isAdmin == true;
+    }
+
+    // テナント基本情報: ブランディング(名称・ロゴ)はログイン前の未認証ユーザーにも表示する必要があるため全員に読み取りを許可。
+    // 書き込みはMilestone 1ではサーバー側(seedスクリプト/Functions)のみ。
+    match /tenants/{tenantId} {
+      allow read: if true;
+      allow write: if false;
+
+      // 会員情報: 同一テナントの会員は閲覧可。書き込みはCloud Functions経由のみ
+      // (管理者によるロール変更・停止はカスタムクレームの更新も伴うため setMemberRoles/setMemberStatus で行う)。
+      match /members/{memberId} {
+        allow read: if isMember(tenantId);
+        allow write: if false;
+
+        // 登録済みパスキー。一覧/登録/削除は専用Cloud Functions(Admin SDK)経由のみ。
+        match /passkeyCredentials/{credentialId} {
+          allow read, write: if false;
+        }
+
+        // 登録済みPINログイン端末。一覧/登録/削除は専用Cloud Functions(Admin SDK)経由のみ。
+        match /pinDevices/{deviceId} {
+          allow read, write: if false;
+        }
+
+        // トーク一覧(会員ごと)。本人のみ閲覧可。最新メッセージ・未読数はCloud Functions(onRoomMessageCreated)が更新する。
+        // 本人は既読にする更新(unreadCountを0に、lastReadAtを現在時刻に)だけできる。
+        match /threads/{roomId} {
+          allow read: if isSelf(tenantId, memberId);
+          allow update: if isSelf(tenantId, memberId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unreadCount', 'lastReadAt'])
+            && request.resource.data.unreadCount == 0
+            && request.resource.data.lastReadAt == request.time;
+          allow create, delete: if false;
+        }
+
+        // 非公開のプロフィール(生年月など)。本人と管理者だけが読める。書き込みは Cloud Functions だけ
+        // (公開の値・自動計算の結果は会員データの profile に置き、同じテナントの会員が読める)。
+        match /private/{docId} {
+          allow read: if isSelf(tenantId, memberId) || isAdmin(tenantId);
+          allow write: if false;
+        }
+
+        // マイスタンプ(会員が自分で登録したスタンプ)。一覧を見られるのも登録・削除できるのも本人だけ。
+        // 画像は Storage の同じ名前のパスに置く(storage.rules)。他の会員は、メッセージの中で画像だけを見る。
+        match /stamps/{stampId} {
+          allow read, delete: if isSelf(tenantId, memberId);
+          allow create: if isSelf(tenantId, memberId)
+            && request.resource.data.keys().hasOnly(['text', 'contentType', 'createdAt'])
+            && request.resource.data.text is string && request.resource.data.text.size() <= 20
+            && request.resource.data.contentType in ['image/webp', 'image/png']
+            && request.resource.data.createdAt == request.time;
+          allow update: if false;
+        }
+
+        // 自分に届いているグループ招待。本人のみ閲覧可。書き込みはCloud Functions経由のみ。
+        match /groupInvitations/{roomId} {
+          allow read: if isSelf(tenantId, memberId);
+          allow write: if false;
+        }
+      }
+
+      // トークのルーム(1対1・グループ共通)。ルームのメンバー(memberIds)だけが閲覧可。
+      // ルームの作成・招待・参加・退出はCloud Functions経由のみ。
+      match /rooms/{roomId} {
+        function roomData() {
+          return get(/databases/$(database)/documents/tenants/$(tenantId)/rooms/$(roomId)).data;
+        }
+        function isRoomMember() {
+          return isMember(tenantId) && request.auth.token.memberId in roomData().memberIds;
+        }
+
+        allow read: if isMember(tenantId) && request.auth.token.memberId in resource.data.memberIds;
+        allow write: if false;
+
+        match /members/{roomMemberId} {
+          allow read: if isRoomMember();
+          allow write: if false;
+        }
+
+        // グループへの招待。ルームのメンバーと、招待された本人が閲覧可。
+        match /invitations/{inviteeId} {
+          allow read: if isRoomMember() || isSelf(tenantId, inviteeId);
+          allow write: if false;
+        }
+
+        // メッセージ。低レイテンシのためクライアントから直接作成する(他の書き込みと異なりCloud Functionsを経由しない)。
+        // 送信者本人・ルームのメンバーであること、項目と種類をルールで検証する。編集・削除は未対応。
+        match /messages/{messageId} {
+          function isValidText(data) {
+            return data.text is string && data.text.size() > 0 && data.text.size() <= 2000;
+          }
+          // コミュニティのスタンプ(packId が tp- で始まる。管理 A2)。表示中のパック・スタンプで、送る人が使える範囲のものだけ送れる。
+          // ルートのパックはルートコミュニティの正規の会員(ゲスト・連携コミュニティだけのメンバーは除く)、
+          // 連携コミュニティのパックはそのメンバー(カスタムクレーム communityIds)が使える。
+          function canUseCommunityStamp(packId, stampId) {
+            let pack = get(/databases/$(database)/documents/tenants/$(tenantId)/stampPacks/$(packId)).data;
+            return pack.hidden != true
+              && stampId in pack.stamps
+              && pack.stamps[stampId].get('hidden', false) != true
+              && (
+                (pack.scope.type == 'root' && request.auth.token.get('isGuest', false) != true)
+                || (pack.scope.type == 'community'
+                  && pack.scope.communityId in request.auth.token.get('communityIds', []))
+              );
+          }
+          // スタンプはIDだけを保存する(SPEC 5-4)。マイスタンプ(packId: 'custom')は、登録した本人だけが送れる。
+          function isValidStamp(data) {
+            return data.stamp is map
+              && data.stamp.keys().hasOnly(['packId', 'stampId', 'ownerId'])
+              && data.stamp.packId is string && data.stamp.packId.size() <= 40
+              && data.stamp.stampId is string && data.stamp.stampId.size() <= 40
+              && (data.stamp.packId != 'custom' || (
+                data.stamp.ownerId == request.auth.token.memberId
+                && exists(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.token.memberId)/stamps/$(data.stamp.stampId))
+              ))
+              && (!data.stamp.packId.matches('tp-.*') || (
+                !('ownerId' in data.stamp) && canUseCommunityStamp(data.stamp.packId, data.stamp.stampId)
+              ));
+          }
+          // 画像の実体は Storage のこのメッセージ専用のパスに置く(storage.rules でもメンバーだけに制限する)。
+          function isValidImage(data) {
+            let mediaPath = 'tenants/' + tenantId + '/rooms/' + roomId + '/media/' + messageId + '/';
+            return data.media is map
+              && data.media.keys().hasOnly(['path', 'thumbPath', 'contentType', 'width', 'height', 'size'])
+              && data.media.path == mediaPath + 'original.jpg'
+              && data.media.thumbPath == mediaPath + 'thumb.jpg'
+              && data.media.contentType == 'image/jpeg'
+              && data.media.width is int && data.media.height is int
+              && data.media.size is int && data.media.size <= 10 * 1024 * 1024;
+          }
+
+          allow read: if isRoomMember();
+          allow create: if isRoomMember()
+            && request.resource.data.keys().hasOnly(['senderId', 'type', 'text', 'stamp', 'media', 'status', 'createdAt'])
+            && request.resource.data.senderId == request.auth.token.memberId
+            && request.resource.data.status == 'ready'
+            && request.resource.data.createdAt == request.time
+            && (
+              (request.resource.data.type == 'text' && isValidText(request.resource.data))
+              || (request.resource.data.type == 'stamp' && isValidStamp(request.resource.data))
+              || (request.resource.data.type == 'image' && isValidImage(request.resource.data))
+            );
+          // リアクション(reactions: 会員ID → 絵文字)。ルームのメンバーが、自分の分だけを付け外しできる(1人1つ)。
+          // 許可する絵文字は src/app/core/utils/stamps.ts の REACTIONS と揃える。
+          allow update: if isRoomMember()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+            && request.resource.data.get('reactions', {}).diff(resource.data.get('reactions', {})).affectedKeys()
+              .hasOnly([request.auth.token.memberId])
+            && (
+              !(request.auth.token.memberId in request.resource.data.get('reactions', {}))
+              || request.resource.data.reactions[request.auth.token.memberId] in ['👍', '😊', '🙏', '🎉', '✨', '😄']
+            );
+          allow delete: if false;
+        }
+      }
+
+      // 旧方式の事務局アカウント情報(メール＋パスワード)。管理者ロール方式への移行により廃止。
+      match /admins/{adminUid} {
+        allow read, write: if false;
+
+        // 登録済みパスキー。一覧/登録/削除は専用Cloud Functions(Admin SDK)経由のみ。
+        match /passkeyCredentials/{credentialId} {
+          allow read, write: if false;
+        }
+
+        // 登録済みPINログイン端末。一覧/登録/削除は専用Cloud Functions(Admin SDK)経由のみ。
+        match /pinDevices/{deviceId} {
+          allow read, write: if false;
+        }
+      }
+
+      // 連携コミュニティ(SPEC 9章。例: 在京高校同窓会)。名称・ロゴの表示に使うため、同じテナントの会員は誰でも読める。
+      // 追加・編集・削除と参加者数の集計は Cloud Functions(createCommunity など)だけが行う。
+      match /communities/{communityId} {
+        allow read: if isMember(tenantId);
+        allow write: if false;
+      }
+
+      // コミュニティのスタンプのパック(管理 A2)。送信済みのメッセージを表示するため、同じテナントの会員は誰でも読める
+      // (送れるかどうかはメッセージのルールで確かめる)。登録・変更は Cloud Functions(createStampPack など)だけ。
+      match /stampPacks/{packId} {
+        allow read: if isMember(tenantId);
+        allow write: if false;
+      }
+
+      // 招待: 招待した本人(正規の会員なら誰でも招待できる)または管理者のみ閲覧可。書き込みはCloud Functions(Admin SDK)経由のみ。
+      match /invites/{inviteId} {
+        allow read: if isAdmin(tenantId)
+          || (isMember(tenantId) && resource.data.recommenderId == request.auth.token.memberId);
+        allow write: if false;
+      }
+
+      // プロフィール候補(出身地・出身校・部活動・趣味)のマスタ。同一テナントの会員は閲覧可。
+      // 書き込みはCloud Functions(候補者登録時の自動蓄積、事務局の名寄せ統合)経由のみ。
+      match /profileOptions/{category}/values/{valueId} {
+        allow read: if isMember(tenantId);
+        allow write: if false;
+      }
+
+      // コネクト申請/成立。自分が当事者(memberIdsに含まれる)の場合のみ閲覧可。
+      // array-containsクエリで自分のmemberIdを絞り込む前提。書き込みはCloud Functions経由のみ。
+      match /connections/{connectionId} {
+        allow read: if isMember(tenantId) && request.auth.token.memberId in resource.data.memberIds;
+        allow write: if false;
+
+        // 旧方式の1対1チャットのメッセージ。ルーム方式(rooms/{roomId}/messages)へ移行したため、
+        // 新規作成は禁止し、当事者の読み取りだけ残す(移行スクリプトは Admin SDK で読む)。
+        match /messages/{messageId} {
+          allow read: if isMember(tenantId)
+            && request.auth.token.memberId in get(/databases/$(database)/documents/tenants/$(tenantId)/connections/$(connectionId)).data.memberIds;
+          allow write: if false;
+        }
+      }
+    }
+
+    // 電話番号→テナント/会員の逆引きインデックス。Cloud Functions(Admin SDK)からのみアクセスし、
+    // クライアントからの直接読み書きは禁止する。
+    match /phoneIndex/{phoneNumber} {
+      allow read, write: if false;
+    }
+
+    // 招待リンクのコード(QRコード・招待の送付)。推測されないよう、読み書きとも Cloud Functions だけが行う。
+    match /inviteCodes/{code} {
+      allow read, write: if false;
+    }
+
+    // 電話番号→招待の逆引きインデックス。候補者はまだ会員権限(カスタムクレーム)を持たないため、
+    // 直接の読み書きはCloud Functions(Admin SDK)経由に限定する。
+    match /inviteIndex/{phoneNumber} {
+      allow read, write: if false;
+    }
+
+    // credentialId→所有者(tenantId/kind/uid/memberId)の逆引きインデックス。
+    // usernameless認証(パスキーログイン)時に所有者を特定するため使う。Cloud Functions専用。
+    match /passkeyIndex/{credentialId} {
+      allow read, write: if false;
+    }
+
+    // パスキー登録/認証の一時チャレンジ。使い捨てでCloud Functionsが検証後に削除する。Cloud Functions専用。
+    match /webauthnChallenges/{requestId} {
+      allow read, write: if false;
+    }
+
+    // deviceId→所有者(tenantId/kind/uid/memberId)の逆引きインデックス。
+    // PINログイン時に所有者を特定するため使う。Cloud Functions専用。
+    // deviceIdはcredentialIdと異なりPINと組み合わさって初めて認証情報として機能する
+    // 準機密値のため、passkeyIndexと同様に直接読み書きを禁止する。
+    match /pinDeviceIndex/{deviceId} {
+      allow read, write: if false;
+    }
+  }
+}

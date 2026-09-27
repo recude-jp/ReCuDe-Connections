@@ -1,0 +1,82 @@
+@if (scopes.isCommunity()) {
+  <p class="intro">
+    「{{ scopes.name() }}」に参加するための条件を入力します。招待から参加する画面に表示されます。
+  </p>
+  <label class="agreement approval">
+    <input type="checkbox" [ngModel]="requireApproval()" (ngModelChange)="requireApproval.set($event)" />
+    参加に管理者の承認を必要とする（招待から参加した人は、「会員申請」で承認するまでメンバーになりません）
+  </label>
+} @else {
+  <p class="intro">
+    会員になるための条件や、年会費などの説明を入力します。会員申請の画面に表示されます。
+    会費の請求・入金の確認は、事務局（管理者）が行います。
+  </p>
+}
+
+<div class="format">
+  <span class="label">書き方</span>
+  <label>
+    <input type="radio" name="format" value="text" [ngModel]="format()" (ngModelChange)="format.set($event)" />
+    テキスト（改行はそのまま表示）
+  </label>
+  <label>
+    <input type="radio" name="format" value="html" [ngModel]="format()" (ngModelChange)="format.set($event)" />
+    HTML
+  </label>
+</div>
+@if (format() === 'html') {
+  <p class="hint">
+    見出し（h2〜h4）・段落・箇条書き・太字・リンク・表などのタグが使えます。
+    安全のため、スクリプトや style 属性などは表示するときに取り除かれます。
+  </p>
+}
+
+<textarea
+  class="body"
+  rows="12"
+  [attr.maxlength]="bodyMax"
+  [placeholder]="format() === 'html' ? '<p>年会費は2,000円です。</p>' : '年会費は2,000円です。'"
+  [ngModel]="body()"
+  (ngModelChange)="body.set($event)"
+></textarea>
+<div class="body-footer">
+  <span>{{ body().length }} / {{ bodyMax }} 文字</span>
+  @if (!body().trim()) {
+    <button type="button" class="link" (click)="insertExample()">書き始めの例を入れる</button>
+  }
+</div>
+
+<label class="agreement">
+  <input type="checkbox" [ngModel]="requireAgreement()" (ngModelChange)="requireAgreement.set($event)" />
+  {{ scopes.isCommunity() ? '参加するとき' : '会員申請のとき' }}に「{{ scopes.isCommunity() ? '参加' : '会員' }}の条件を確認し、同意します」のチェックを求める
+</label>
+
+<h2>{{ scopes.isCommunity() ? '参加の画面での見え方' : '申請の画面での見え方' }}</h2>
+@if (body().trim()) {
+  <app-membership-terms [format]="format()" [body]="body()" />
+  @if (requireAgreement()) {
+    <p class="agreement-preview">
+      <input type="checkbox" disabled /> {{ scopes.isCommunity() ? '参加' : '会員' }}の条件を確認し、同意します
+    </p>
+  }
+} @else {
+  <p class="placeholder">条件は表示されません（本文が空のまま保存すると、条件を外します）。</p>
+}
+
+@if (scopes.membershipTerms()?.updatedAt; as updatedAt) {
+  <p class="updated">最終更新: {{ formatDate(updatedAt) }}</p>
+}
+@if (errorMessage()) {
+  <p class="error">{{ errorMessage() }}</p>
+}
+@if (successMessage()) {
+  <p class="success">{{ successMessage() }}</p>
+}
+
+<div class="save-bar">
+  <button type="button" class="primary" [disabled]="saving() || !dirty()" (click)="save()">保存する</button>
+  <button type="button" class="secondary" [disabled]="saving() || !dirty()" (click)="discard()">変更を取り消す</button>
+  @if (dirty()) {
+    <span class="unsaved">保存していない変更があります</span>
+  }
+</div>

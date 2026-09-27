@@ -1,0 +1,55 @@
+{
+  "packId": "komame",
+  "name": "こまめ（共通スタンプ）",
+  "version": 2,
+  "stamps": [
+    {
+      "id": "hihiin",
+      "text": "ヒヒーン！",
+      "path": "stamps/komame/hihiin_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "goal",
+      "text": "ゴール！",
+      "path": "stamps/komame/goal_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "ninjin",
+      "text": "にんじんください",
+      "path": "stamps/komame/ninjin_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "hitoyasumi",
+      "text": "ひとやすみ",
+      "path": "stamps/komame/hitoyasumi_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "sansen",
+      "text": "参戦します！",
+      "path": "stamps/komame/sansen_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "ganbarimasu",
+      "text": "がんばります！",
+      "path": "stamps/komame/ganbarimasu_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "otsukare",
+      "text": "おつかれさまです",
+      "path": "stamps/komame/otsukare_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "omedetou",
+      "text": "おめでとうございます",
+      "path": "stamps/komame/omedetou_v2.webp",
+      "animated": false
+    }
+  ]
+}

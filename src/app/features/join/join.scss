@@ -1,0 +1,70 @@
+.community {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.service {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: #78716c;
+}
+
+.description {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f5f5f4;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.invited-by {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.required {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.7rem;
+}
+
+.login-link {
+  margin-top: 20px;
+  font-size: 0.85rem;
+  color: #78716c;
+}
+
+.terms-title {
+  margin: 16px 0 6px;
+  font-size: 0.95rem;
+}
+
+.agreement {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0;
+  font-size: 0.9rem;
+}
+
+.submitted {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid #ccfbf1;
+  border-radius: 10px;
+  background: #f0fdfa;
+
+  p {
+    margin: 0 0 8px;
+  }
+}

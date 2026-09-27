@@ -1,0 +1,101 @@
+// グループ作成・グループ情報など、トーク右側のフォーム画面で共通に使うスタイル。
+$accent: #0f766e;
+
+:host {
+  display: block;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.panel {
+  max-width: 560px;
+  padding: 20px 24px 32px;
+}
+
+.panel-header {
+  margin-bottom: 16px;
+
+  .back {
+    font-size: 0.85rem;
+    color: $accent;
+  }
+
+  h2 {
+    margin: 8px 0 0;
+    font-size: 1.15rem;
+  }
+}
+
+h3 {
+  margin: 24px 0 8px;
+  font-size: 0.95rem;
+  color: #44403c;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #44403c;
+}
+
+input[type='text'],
+textarea {
+  padding: 10px 12px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.hint {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  color: #78716c;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.success {
+  color: #166534;
+  font-size: 0.9rem;
+}
+
+.placeholder {
+  color: #78716c;
+  font-size: 0.9rem;
+}
+
+button[type='submit'],
+.primary {
+  align-self: flex-start;
+  margin-top: 12px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: $accent;
+  color: #fff;
+  font-size: 0.95rem;
+  cursor: pointer;
+
+  &:disabled {
+    background: #a8a29e;
+    cursor: not-allowed;
+  }
+}
+
+@media (max-width: 767px) {
+  .panel {
+    padding: 16px;
+  }
+}

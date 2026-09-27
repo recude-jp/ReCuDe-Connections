@@ -1,0 +1,9 @@
+@if (summary().length > 0) {
+  <div class="reactions">
+    @for (r of summary(); track r.emoji) {
+      <button type="button" class="reaction-chip" [class.mine]="mine() === r.emoji" [title]="r.names" (click)="react.emit(r.emoji)">
+        {{ r.emoji }} <span>{{ r.count }}</span>
+      </button>
+    }
+  </div>
+}

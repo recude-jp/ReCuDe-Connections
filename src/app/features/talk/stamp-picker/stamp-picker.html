@@ -1,0 +1,63 @@
+<div class="stamp-panel">
+  <div class="stamp-tabs" role="tablist">
+    @for (pack of packs(); track pack.packId) {
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="activePackId() === pack.packId"
+        [class.active]="activePackId() === pack.packId"
+        (click)="choose(pack.packId)"
+      >
+        @if (pack.iconUrl) {
+          <img [src]="pack.iconUrl" alt="" />
+        }
+        <span>{{ pack.name }}</span>
+      </button>
+    }
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="activePackId() === customPackId"
+      [class.active]="activePackId() === customPackId"
+      (click)="choose(customPackId)"
+    >
+      <span>マイスタンプ</span>
+    </button>
+  </div>
+
+  @if (activePack(); as pack) {
+    <div class="stamp-grid">
+      @for (stamp of pack.stamps; track stamp.id) {
+        <button
+          type="button"
+          [attr.aria-label]="'スタンプ「' + (stamp.text || pack.name) + '」を送る'"
+          (click)="picked.emit({ packId: pack.packId, stampId: stamp.id })"
+        >
+          <img [src]="stamp.url" [alt]="stamp.text" loading="lazy" />
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="stamp-grid">
+      @for (stamp of myStamps(); track stamp.id) {
+        <button
+          type="button"
+          [attr.aria-label]="'マイスタンプ「' + (stamp.text || '名前なし') + '」を送る'"
+          (click)="picked.emit({ packId: customPackId, stampId: stamp.id, ownerId: myMemberId() })"
+        >
+          <app-stamp-image
+            [stamp]="{ packId: customPackId, stampId: stamp.id, ownerId: myMemberId() }"
+            [label]="stamp.text"
+            [size]="76"
+          />
+        </button>
+      }
+    </div>
+    <p class="my-stamps-link">
+      @if (myStamps().length === 0) {
+        まだマイスタンプはありません。
+      }
+      <a routerLink="/mypage/stamps">マイスタンプを登録・整理する</a>
+    </p>
+  }
+</div>

@@ -1,0 +1,67 @@
+// 管理画面の各ページで共通に使う部品のスタイル(各コンポーネントの scss から @use する)。
+
+.error {
+  color: #b91c1c;
+}
+
+.success {
+  color: #166534;
+}
+
+.placeholder {
+  color: #78716c;
+  font-size: 0.9rem;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: 4px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+
+  &.admin {
+    background: #ede9fe;
+    color: #5b21b6;
+  }
+
+  &.recommender {
+    background: #ecfccb;
+    color: #365314;
+  }
+
+  &.guest {
+    background: #fef9c3;
+    color: #854d0e;
+  }
+
+  &.member {
+    background: #f5f5f4;
+    color: #57534e;
+  }
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+
+  &.active {
+    background: #f0fdfa;
+    color: #0f766e;
+  }
+
+  &.suspended {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+}
+
+// 連携コミュニティ(SPEC 9章)の区分・所属。
+.role-badge.community {
+  background: #e0f2fe;
+  color: #075985;
+}

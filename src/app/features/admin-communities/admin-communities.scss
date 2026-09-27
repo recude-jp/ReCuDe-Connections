@@ -1,0 +1,174 @@
+@use '../admin-layout/admin-shared';
+
+$accent: #0f766e;
+
+.intro,
+.hint {
+  font-size: 0.85rem;
+  color: #57534e;
+}
+
+.hint {
+  margin: 4px 0 8px;
+  font-size: 0.8rem;
+}
+
+button {
+  padding: 6px 14px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  background: #fff;
+  color: #44403c;
+  cursor: pointer;
+
+  &.primary {
+    border-color: $accent;
+    background: $accent;
+    color: #fff;
+  }
+
+  &.danger {
+    border-color: #fecaca;
+    color: #b91c1c;
+  }
+
+  &.link {
+    border: none;
+    padding: 0;
+    color: $accent;
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.panel,
+.delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #fafaf9;
+
+  h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+  }
+
+  label,
+  .label {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  input[type='text'],
+  textarea {
+    padding: 8px 10px;
+    border: 1px solid #d6d3d1;
+    border-radius: 8px;
+    font: inherit;
+  }
+}
+
+.delete-confirm {
+  margin: 12px 0 0;
+  border-color: #fecaca;
+  background: #fef2f2;
+
+  p {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+}
+
+.required {
+  margin-left: 4px;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: #991b1b;
+}
+
+.logo-row,
+.buttons,
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.buttons {
+  margin-top: 12px;
+}
+
+.communities {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  > li {
+    margin-bottom: 12px;
+    padding: 14px 16px;
+    border: 1px solid #e7e5e4;
+    border-radius: 10px;
+  }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: 5em 1fr;
+    gap: 6px 12px;
+    margin: 12px 0 0;
+    font-size: 0.9rem;
+  }
+
+  dt {
+    color: #78716c;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: #78716c;
+}
+
+.warning {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 0.8rem;
+}
+
+.description {
+  white-space: pre-wrap;
+}
+
+.section-title {
+  margin: 24px 0 4px;
+  font-size: 1rem;
+}
+
+.logo-text {
+  width: 6em;
+}

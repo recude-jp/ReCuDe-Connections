@@ -1,0 +1,18 @@
+<div class="mypage">
+  <header class="mypage-header">
+    <h1>マイページ @if (isGuest()) { <span class="guest-badge">{{ guestLabel() }}</span> }</h1>
+    <button type="button" class="sign-out" [disabled]="signingOut()" (click)="signOut()">ログアウト</button>
+  </header>
+
+  <nav class="mypage-tabs" aria-label="マイページのメニュー">
+    @for (tab of tabs(); track tab.link) {
+      <a [routerLink]="tab.link" [class.active]="isActive(tab)" [attr.aria-current]="isActive(tab) ? 'page' : null">
+        {{ tab.label }}
+      </a>
+    }
+  </nav>
+
+  <div class="mypage-content">
+    <router-outlet />
+  </div>
+</div>

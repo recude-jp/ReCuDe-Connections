@@ -1,0 +1,175 @@
+@if (room() === undefined) {
+  <p class="state">読み込み中...</p>
+} @else if (room() === null) {
+  <div class="state">
+    <p>このトークは表示できません。</p>
+    <a routerLink="/talk">トーク一覧へ戻る</a>
+  </div>
+} @else {
+  <div class="room">
+    <header class="room-header">
+      <a class="back" routerLink="/talk" aria-label="トーク一覧へ戻る"><fa-icon [icon]="icons.back" /></a>
+      <div class="room-title">
+        <h2>{{ title() }}</h2>
+        @if (isGroup()) {
+          <span class="member-count">{{ room()!.memberCount }}人</span>
+        }
+      </div>
+      @if (isGroup()) {
+        <a class="info" [routerLink]="['/talk/rooms', roomId(), 'info']" aria-label="グループ情報">
+          <fa-icon [icon]="icons.info" />
+          <span>グループ情報</span>
+        </a>
+      }
+    </header>
+
+    <div class="messages">
+      @if (hasOlder()) {
+        <button type="button" class="load-older" (click)="loadOlder()">以前のメッセージを読み込む</button>
+      }
+      @for (message of messages(); track message.id; let i = $index) {
+        <div class="message-row" [class.mine]="isMine(message)">
+          <!-- 自分以外のメッセージの頭に、送った人のプロフィール画像(未登録なら名前の最初の1文字)を出す。押すとプロフィール。 -->
+          @if (!isMine(message)) {
+            <button
+              type="button"
+              class="message-avatar"
+              [attr.aria-label]="senderName(message) + 'さんのプロフィールを見る'"
+              [disabled]="!membersById().has(message.senderId)"
+              (click)="profileMemberId.set(message.senderId)"
+            >
+              <app-member-avatar
+                [photoPath]="senderPhotoPath(message)"
+                [name]="membersById().get(message.senderId)?.displayName ?? ''"
+                [text]="membersById().get(message.senderId)?.avatarText"
+                [size]="32"
+              />
+            </button>
+          }
+          <div class="message-body">
+            @if (showSender(i)) {
+              <span class="sender">{{ senderName(message) }}</span>
+            }
+            <div class="bubble-line">
+              @if (message.status === 'removed') {
+                <span class="bubble removed">（削除されたメッセージ）</span>
+              } @else if (message.type === 'image' && message.media) {
+                <app-message-image [media]="message.media" (open)="lightboxUrl.set($event)" />
+              } @else if (message.type === 'stamp') {
+                @if (isLegacyStamp(message)) {
+                  <span class="bubble legacy-stamp">{{ message.stamp }}</span>
+                } @else if (stampRef(message); as ref) {
+                  <app-stamp-image [stamp]="ref" />
+                }
+              } @else {
+                <span class="bubble">{{ message.text }}</span>
+              }
+              <span class="side">
+                <!-- リアクションは自分以外のメッセージにだけ付けられる。選択肢はボタンのすぐ右(場所が無ければ左)に出す。 -->
+                @if (message.status !== 'removed' && !isMine(message)) {
+                  <span class="react-anchor">
+                    <button
+                      type="button"
+                      class="react-button"
+                      [class.active]="reactionTargetId() === message.id"
+                      aria-label="リアクションする"
+                      [attr.aria-expanded]="reactionTargetId() === message.id"
+                      (click)="toggleReactionPicker(message.id, $event)"
+                    >
+                      <fa-icon [icon]="icons.stamp" />
+                    </button>
+                    @if (reactionTargetId() === message.id) {
+                      <app-reaction-picker
+                        [class.to-left]="reactionPickerToLeft()"
+                        [selected]="myReaction(message)"
+                        (picked)="react(message, $event)"
+                      />
+                    }
+                  </span>
+                }
+                <span class="time">{{ formatTime(message.createdAt) }}</span>
+              </span>
+            </div>
+
+            <app-message-reactions
+              [reactions]="message.reactions ?? {}"
+              [myMemberId]="memberSession()?.memberId ?? ''"
+              [memberNames]="memberNames()"
+              (react)="react(message, $event)"
+            />
+          </div>
+        </div>
+      } @empty {
+        @if (uploads().length === 0) {
+          <p class="no-messages">まだメッセージはありません。最初のひとことを送ってみましょう。</p>
+        }
+      }
+
+      @for (upload of uploads(); track upload.id) {
+        <div class="message-row mine">
+          <div class="upload">
+            <img [src]="upload.previewUrl" alt="送信中の写真" />
+            <span class="upload-progress">送信中 {{ (upload.progress * 100).toFixed(0) }}%</span>
+          </div>
+        </div>
+      }
+      <div #messagesEnd></div>
+    </div>
+
+    @if (profileMemberId(); as memberId) {
+      <app-member-profile-dialog [memberId]="memberId" (closed)="profileMemberId.set(null)" />
+    }
+
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+
+    <div class="composer">
+      <div class="templates">
+        @for (template of templates; track template.id) {
+          <button
+            type="button"
+            class="template-button"
+            (click)="applyTemplate(politenessTier() === 'senior' ? template.senior : template.peer)"
+          >
+            {{ template.label }}
+          </button>
+        }
+      </div>
+
+      @if (stampPanelOpen()) {
+        <app-stamp-picker (picked)="sendStamp($event)" />
+      }
+
+      <form class="input-row" (ngSubmit)="sendText()">
+        <button
+          type="button"
+          class="tool-button"
+          [class.active]="stampPanelOpen()"
+          aria-label="スタンプ"
+          (click)="toggleStampPanel()"
+        >
+          <fa-icon [icon]="icons.stamp" />
+        </button>
+        <label class="tool-button" aria-label="写真を送る">
+          <fa-icon [icon]="icons.image" />
+          <input type="file" accept="image/*" (change)="onImageSelected($event)" />
+        </label>
+        <input
+          type="text"
+          placeholder="メッセージを入力"
+          aria-label="メッセージ"
+          maxlength="2000"
+          [ngModel]="draftText()"
+          (ngModelChange)="draftText.set($event)"
+          name="draftText"
+        />
+        <button type="submit" class="send" [disabled]="sending() || !draftText().trim()">送信</button>
+      </form>
+    </div>
+  </div>
+
+  @if (lightboxUrl(); as url) {
+    <app-image-viewer [url]="url" (closed)="lightboxUrl.set(null)" />
+  }
+}

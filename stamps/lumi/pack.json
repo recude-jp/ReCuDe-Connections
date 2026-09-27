@@ -1,0 +1,55 @@
+{
+  "packId": "lumi",
+  "name": "ルミ（共通スタンプ）",
+  "version": 2,
+  "stamps": [
+    {
+      "id": "hajimemashite",
+      "text": "はじめまして",
+      "path": "stamps/lumi/hajimemashite_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "kashikomari",
+      "text": "かしこまりました",
+      "path": "stamps/lumi/kashikomari_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "omakase",
+      "text": "おまかせください！",
+      "path": "stamps/lumi/omakase_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "arigatou",
+      "text": "ありがとうございます",
+      "path": "stamps/lumi/arigatou_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "kanaimasuyouni",
+      "text": "叶いますように",
+      "path": "stamps/lumi/kanaimasuyouni_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "omedetou",
+      "text": "おめでとうございます",
+      "path": "stamps/lumi/omedetou_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "shoushou",
+      "text": "少々お待ちください",
+      "path": "stamps/lumi/shoushou_v2.webp",
+      "animated": false
+    },
+    {
+      "id": "matane",
+      "text": "またね！",
+      "path": "stamps/lumi/matane_v2.webp",
+      "animated": false
+    }
+  ]
+}

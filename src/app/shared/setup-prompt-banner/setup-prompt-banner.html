@@ -1,0 +1,12 @@
+@if (visible()) {
+  <div class="setup-prompt-banner">
+    <p>
+      パスキーまたはPINコードを登録すると、次回から素早く安全にログインできます。
+      <a [routerLink]="settingsLink()">今すぐ設定する</a>
+    </p>
+    <div class="setup-prompt-actions">
+      <button type="button" class="link-button" (click)="neverShowAgain()">次回から表示しない</button>
+      <button type="button" class="close-button" aria-label="閉じる" (click)="close()">×</button>
+    </div>
+  </div>
+}

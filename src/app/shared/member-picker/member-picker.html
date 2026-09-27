@@ -1,0 +1,28 @@
+<input
+  type="search"
+  class="picker-search"
+  placeholder="名前で絞り込む"
+  aria-label="名前で絞り込む"
+  [value]="nameQuery()"
+  (input)="nameQuery.set($any($event.target).value)"
+/>
+<ul class="picker-list">
+  @for (member of filteredMembers(); track member.id) {
+    @let reason = disabledReasons().get(member.id);
+    <li>
+      <label [class.disabled]="!!reason">
+        <input
+          type="checkbox"
+          [checked]="isSelected(member.id)"
+          [disabled]="!!reason"
+          (change)="toggle(member.id)"
+        />
+        <app-member-avatar [photoPath]="member.photoPath" [name]="member.displayName" [text]="member.avatarText" [size]="28" />
+        <span class="name">{{ member.displayName }}</span>
+        <span class="meta">{{ reason ?? profileText(member) }}</span>
+      </label>
+    </li>
+  } @empty {
+    <li class="empty">該当する会員はいません。</li>
+  }
+</ul>

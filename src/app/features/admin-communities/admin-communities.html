@@ -1,0 +1,162 @@
+<p class="intro">
+  県人会の中の連携団体（在京高校同窓会など）を登録します。会員は「つながる &gt; 招待」で招待先に選べるようになり、参加した人の画面には連携コミュニティのロゴが出ます。
+</p>
+
+@if (successMessage()) {
+  <p class="success">{{ successMessage() }}</p>
+}
+@if (errorMessage()) {
+  <p class="error">{{ errorMessage() }}</p>
+}
+
+@if (editing(); as id) {
+  <form class="panel" (ngSubmit)="save()">
+    <h2>{{ id === 'new' ? '連携コミュニティを追加' : '連携コミュニティを編集' }}</h2>
+
+    <label for="communityName">名称 <span class="required">必須</span></label>
+    <input
+      id="communityName"
+      name="name"
+      type="text"
+      maxlength="50"
+      placeholder="例: 岐阜北高校 在京同窓会"
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event)"
+    />
+
+    <span class="label">ロゴ（任意）</span>
+    <div class="logo-row">
+      <app-community-logo [name]="name() || '？'" [logoUrl]="logoPreview()" [text]="logoText()" [size]="48" />
+      <input type="file" accept="image/*" aria-label="ロゴの画像" (change)="onLogoSelected($event)" />
+      @if (logoPreview()) {
+        <button type="button" class="link" (click)="clearLogo()">ロゴを外す</button>
+      }
+    </div>
+    <p class="hint">未設定のときは、丸いアイコンに下の文字（または名称の頭文字）を出します。</p>
+
+    <label for="communityLogoText">ロゴの代わりの文字（任意・2文字まで）</label>
+    <input
+      id="communityLogoText"
+      name="logoText"
+      type="text"
+      class="logo-text"
+      placeholder="例: 岐北"
+      [ngModel]="logoText()"
+      (ngModelChange)="setLogoText($event)"
+    />
+    <p class="hint">ロゴが無いときに、丸いアイコンに出す文字です。2文字なら同じ大きさで並べます。空のときは名称の最初の1文字を出します。</p>
+
+    <label for="communityDescription">説明（任意）</label>
+    <textarea
+      id="communityDescription"
+      name="description"
+      rows="3"
+      maxlength="500"
+      placeholder="参加の画面に表示します"
+      [ngModel]="description()"
+      (ngModelChange)="description.set($event)"
+    ></textarea>
+
+    <span class="label">管理者 <span class="required">必須・1人以上</span></span>
+    <p class="hint">
+      ルートコミュニティの会員から選びます（ゲスト・審査待ち・連携コミュニティだけのメンバーは選べません）。管理者は、その連携コミュニティのメンバーにもなります。
+    </p>
+    <app-member-picker [members]="adminCandidates()" [(selectedIds)]="adminIds" />
+
+    <div class="buttons">
+      <button type="submit" class="primary" [disabled]="!canSave()">
+        {{ id === 'new' ? '追加する' : '保存する' }}
+      </button>
+      <button type="button" [disabled]="processing()" (click)="closeForm()">やめる</button>
+    </div>
+  </form>
+} @else {
+  <p><button type="button" class="primary" (click)="openNew()">連携コミュニティを追加</button></p>
+}
+
+@if (communities() === undefined) {
+  <p class="placeholder">読み込み中...</p>
+} @else if (sortedCommunities().length === 0) {
+  <p class="placeholder">連携コミュニティはまだありません。</p>
+} @else {
+  <ul class="communities">
+    @for (community of sortedCommunities(); track community.id) {
+      <li>
+        <div class="head">
+          <app-community-logo [name]="community.name" [logoUrl]="community.logoUrl" [text]="community.logoText" [size]="40" />
+          <div class="body">
+            <strong>{{ community.name }}</strong>
+            <span class="meta">作成日 {{ formatDate(community.createdAt) || '—' }}</span>
+          </div>
+          <div class="actions">
+            <button type="button" (click)="openEdit(community)">編集</button>
+            <button type="button" class="danger" (click)="askDelete(community)">削除</button>
+          </div>
+        </div>
+
+        <dl>
+          <dt>管理者</dt>
+          <dd>
+            @for (admin of admins(community); track admin.id) {
+              <a [routerLink]="['/admin', 'root', 'members', admin.id]">{{ admin.name }}</a>
+              @if (admin.warning) {
+                <span class="warning">（{{ admin.warning }}）</span>
+              }
+              @if (!$last) {
+                、
+              }
+            }
+            @if (hasAdminWarning(community)) {
+              <p class="warning">ルートコミュニティの会員でない管理者がいます。編集して管理者を選び直してください。</p>
+            }
+          </dd>
+          <dt>参加者</dt>
+          <dd>
+            <a [routerLink]="['/admin', community.id, 'members']">{{ community.memberCount }}人</a>
+            <span class="meta">
+              （連携コミュニティだけ {{ community.memberCount - community.rootMemberCount }}人・ルートの会員でもある
+              {{ community.rootMemberCount }}人）
+            </span>
+          </dd>
+          <dt>管理画面</dt>
+          <dd>
+            <a [routerLink]="['/admin', community.id, 'members']">この連携コミュニティの管理画面を開く</a>
+            <span class="meta">（会員一覧・会員申請・プロフィール項目・会員条件・スタンプ・サービス設定）</span>
+          </dd>
+          @if (community.description) {
+            <dt>説明</dt>
+            <dd class="description">{{ community.description }}</dd>
+          }
+        </dl>
+
+        @if (deleting() === community.id) {
+          <form class="delete-confirm" (ngSubmit)="confirmDelete(community)">
+            <p>
+              削除すると、全メンバーの所属から外れ、この連携コミュニティへの招待リンク・QRコードは使えなくなります。
+              連携コミュニティだけに所属していた人は、ゲストに戻ります。
+            </p>
+            <label for="confirm-{{ community.id }}">確認のため、名称「{{ community.name }}」を入力してください</label>
+            <input
+              id="confirm-{{ community.id }}"
+              name="confirmName"
+              type="text"
+              autocomplete="off"
+              [ngModel]="confirmName()"
+              (ngModelChange)="confirmName.set($event)"
+            />
+            <div class="buttons">
+              <button
+                type="submit"
+                class="danger"
+                [disabled]="processing() || confirmName().trim() !== community.name"
+              >
+                削除する
+              </button>
+              <button type="button" [disabled]="processing()" (click)="deleting.set(null)">やめる</button>
+            </div>
+          </form>
+        }
+      </li>
+    }
+  </ul>
+}

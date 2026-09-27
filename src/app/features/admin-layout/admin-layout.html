@@ -1,0 +1,57 @@
+<div class="admin-page">
+  <div class="admin-title">
+    <h1>管理</h1>
+    @if (scopes.current(); as current) {
+      @if (scopes.options().length > 1) {
+        <div class="scope-menu">
+          <button
+            type="button"
+            class="scope-button"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="menuOpen()"
+            (click)="menuOpen.set(!menuOpen())"
+          >
+            <app-community-logo [name]="current.name" [logoUrl]="current.logoUrl" [text]="current.logoText" [size]="24" [nativeTitle]="false" />
+            <span class="scope-name">{{ current.name }}</span>
+            <span class="caret" aria-hidden="true">▾</span>
+          </button>
+          @if (menuOpen()) {
+            <div class="backdrop" (click)="menuOpen.set(false)"></div>
+            <ul class="scope-list" role="menu" aria-label="管理するコミュニティ">
+              @for (option of scopes.options(); track option.key) {
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    [attr.aria-checked]="option.key === current.key"
+                    [class.active]="option.key === current.key"
+                    (click)="choose(option)"
+                  >
+                    <app-community-logo [name]="option.name" [logoUrl]="option.logoUrl" [text]="option.logoText" [size]="24" [nativeTitle]="false" />
+                    <span class="scope-name">{{ option.name }}</span>
+                    <span class="kind">{{ option.isCommunity ? '連携コミュニティ' : 'ルート' }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      } @else {
+        <span class="scope-single">
+          <app-community-logo [name]="current.name" [logoUrl]="current.logoUrl" [text]="current.logoText" [size]="24" [nativeTitle]="false" />
+          {{ current.name }}
+        </span>
+      }
+    }
+  </div>
+  <nav class="admin-menu" aria-label="管理メニュー">
+    @for (tab of tabs(); track tab.path) {
+      <a [routerLink]="scopes.link(tab.path)" routerLinkActive="active" ariaCurrentWhenActive="page">{{ tab.label }}</a>
+    }
+  </nav>
+  @if (scopes.isCommunity() && scopes.communities() !== undefined && !scopes.community()) {
+    <p class="missing">この連携コミュニティは見つかりません（削除された可能性があります）。</p>
+  } @else {
+    <router-outlet />
+  }
+</div>

@@ -1,0 +1,52 @@
+@use '../admin-layout/admin-shared';
+
+.intro {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  color: #57534e;
+}
+
+.applications {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+
+  li + li {
+    border-top: 1px solid #e7e5e4;
+  }
+
+  a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      background: #fafaf9;
+    }
+  }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .meta,
+  .profile {
+    font-size: 0.8rem;
+    color: #78716c;
+  }
+
+  .open {
+    font-size: 0.85rem;
+    color: #0f766e;
+    white-space: nowrap;
+  }
+}

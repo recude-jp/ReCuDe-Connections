@@ -1,0 +1,40 @@
+<div class="panel">
+  <header class="panel-header">
+    <a routerLink="/talk" class="back">← トーク一覧</a>
+    <h2>グループを作る</h2>
+  </header>
+
+  <form (ngSubmit)="create()">
+    <label for="groupName">グループ名（必須）</label>
+    <input
+      id="groupName"
+      name="name"
+      type="text"
+      maxlength="40"
+      placeholder="例: 岐阜北高OB・OG会"
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event)"
+    />
+
+    <label for="groupDescription">説明（任意）</label>
+    <textarea
+      id="groupDescription"
+      name="description"
+      rows="2"
+      maxlength="200"
+      placeholder="どんな集まりか、ひとこと"
+      [ngModel]="description()"
+      (ngModelChange)="description.set($event)"
+    ></textarea>
+
+    <label>招待する会員（{{ inviteeIds().length }}人を選択中）</label>
+    <p class="hint">招待された人が「参加する」を選ぶとメンバーになります。あとからグループ情報で招待することもできます（{{ limit }}人まで）。</p>
+    <app-member-picker [members]="candidates()" [(selectedIds)]="inviteeIds" />
+
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+
+    <button type="submit" [disabled]="saving() || !name().trim()">グループを作る</button>
+  </form>
+</div>

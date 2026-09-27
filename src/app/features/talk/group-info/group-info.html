@@ -1,0 +1,100 @@
+<div class="panel">
+  <header class="panel-header">
+    <a [routerLink]="['/talk/rooms', roomId]" class="back">← トークに戻る</a>
+    <h2>グループ情報</h2>
+  </header>
+
+  @if (room() === undefined) {
+    <p class="placeholder">読み込み中...</p>
+  } @else if (room() === null || room()!.type !== 'group') {
+    <p class="placeholder">このグループは表示できません。</p>
+  } @else {
+    @let group = room()!;
+    <div class="group-summary">
+      <strong>{{ group.name }}</strong>
+      @if (group.description) {
+        <p>{{ group.description }}</p>
+      }
+      <span class="meta">{{ group.memberCount }}人 ・ 作成日 {{ formatDate(group.createdAt) }}</span>
+    </div>
+
+    <h3>メンバー</h3>
+    <p class="hint">グループ管理者は複数人にできます。グループ管理者は、メンバーをグループ管理者にしたり外したりできます。</p>
+    <ul class="member-list">
+      @for (member of members(); track member.id) {
+        <li>
+          <span class="name">{{ member.name }}{{ member.isSelf ? '（あなた）' : '' }}</span>
+          @if (member.role === 'admin') {
+            <span class="badge group-admin">グループ管理者</span>
+          }
+          <span class="meta">
+            @if (member.invitedBy) {
+              {{ nameOf(member.invitedBy) }}さんの招待
+            } @else {
+              作成者
+            }
+          </span>
+          @if (isGroupAdmin()) {
+            @if (member.role === 'admin') {
+              <button
+                type="button"
+                class="role-button"
+                [disabled]="processing() || (member.isSelf && isOnlyGroupAdmin())"
+                [title]="member.isSelf && isOnlyGroupAdmin() ? '他にグループ管理者がいないため外せません' : ''"
+                (click)="setGroupAdmin(member.id, member.name, false)"
+              >
+                管理者から外す
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="role-button"
+                [disabled]="processing()"
+                (click)="setGroupAdmin(member.id, member.name, true)"
+              >
+                管理者にする
+              </button>
+            }
+          }
+        </li>
+      }
+    </ul>
+
+    @if (pendingInvitations().length > 0) {
+      <h3>招待中</h3>
+      <ul class="member-list">
+        @for (inv of pendingInvitations(); track inv.id) {
+          <li>
+            <span class="name">{{ inv.name }}</span>
+            <span class="badge pending">返事待ち</span>
+            <span class="meta">{{ inv.inviterName }}さんが招待</span>
+          </li>
+        }
+      </ul>
+    }
+
+    <h3>メンバーを招待する</h3>
+    <p class="hint">同じ会の会員を招待できます。あと{{ remaining() }}人まで（{{ limit }}人まで・招待中を含む）。</p>
+    <app-member-picker [members]="candidates()" [disabledReasons]="disabledReasons()" [(selectedIds)]="inviteeIds" />
+    <button type="button" class="primary" [disabled]="processing() || inviteeIds().length === 0" (click)="invite()">
+      {{ inviteeIds().length > 0 ? inviteeIds().length + '人を招待する' : '招待する' }}
+    </button>
+
+    @if (successMessage()) {
+      <p class="success">{{ successMessage() }}</p>
+    }
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+
+    <h3>退出</h3>
+    @if (isLastMember()) {
+      <p class="hint">あなたはこのグループの最後のメンバーです。退出すると、このグループは削除になります。</p>
+    } @else if (isOnlyGroupAdmin()) {
+      <p class="hint">あなたはこのグループの唯一のグループ管理者のため、退出できません。先に他のメンバーを「管理者にする」で、グループ管理者にしてください。</p>
+    }
+    <button type="button" class="leave" [disabled]="processing() || !canLeave()" (click)="leave()">
+      {{ isLastMember() ? '退出してグループを削除する' : 'グループから退出する' }}
+    </button>
+  }
+</div>

@@ -1,0 +1,87 @@
+<h3>「{{ community().name }}」のプロフィール</h3>
+@if (fields().length === 0) {
+  <p class="placeholder">この連携コミュニティ独自のプロフィール項目はありません（「プロフィール項目」で追加できます）。</p>
+} @else {
+  <dl class="profile">
+    @for (field of fields(); track field.id) {
+      @if (!field.hidden || values()[field.id]) {
+        <dt>{{ field.label }}{{ field.hidden ? '（非表示の項目）' : '' }}</dt>
+        <dd>{{ formatValue(values()[field.id], field) || '—' }}</dd>
+      }
+    }
+  </dl>
+}
+
+@if (successMessage()) {
+  <p class="success">{{ successMessage() }}</p>
+}
+@if (errorMessage()) {
+  <p class="error">{{ errorMessage() }}</p>
+}
+
+@if (application(); as app) {
+  @if (app.status !== 'approved' || !isMemberOfCommunity()) {
+    <h3>参加の申請</h3>
+    <div class="application">
+      @if (app.status === 'pending') {
+        <p>
+          <strong>審査待ち</strong>（{{ formatDate(app.submittedAt) }} 申請）
+          @if (app.termsAgreement) {
+            ・参加の条件に同意済み
+          }
+        </p>
+        <label class="reason">
+          否認する場合の理由（任意）
+          <textarea rows="2" maxlength="500" [value]="rejectReason()" (input)="rejectReason.set($any($event.target).value)"></textarea>
+        </label>
+        <div class="decide">
+          <button type="button" class="approve" [disabled]="processing()" (click)="decide(true)">メンバーとして承認する</button>
+          <button type="button" class="danger" [disabled]="processing()" (click)="decide(false)">否認する</button>
+        </div>
+      } @else if (app.status === 'rejected') {
+        <p>否認済み（{{ formatDate(app.decidedAt) }}）@if (app.rejectReason) { ・理由: {{ app.rejectReason }} }</p>
+        <p class="placeholder">招待リンクから参加し直すと、ここに審査待ちとして出ます。</p>
+      }
+    </div>
+  }
+}
+
+@if (isMemberOfCommunity()) {
+  <h3>操作</h3>
+  <div class="actions">
+    <div class="action">
+      <div>
+        <strong>連携コミュニティの管理者</strong>
+        <p class="placeholder">
+          @if (isLastAdmin()) {
+            最後の1人の管理者のため、外せません。
+          } @else if (!canBeAdmin() && !isCommunityAdmin()) {
+            管理者は、ルートコミュニティの会員から選びます。
+          } @else {
+            この連携コミュニティの管理画面に入り、メンバーの承認や設定ができます。
+          }
+        </p>
+      </div>
+      <button
+        type="button"
+        [disabled]="processing() || isLastAdmin() || (!canBeAdmin() && !isCommunityAdmin())"
+        (click)="toggleAdmin()"
+      >
+        {{ isCommunityAdmin() ? '管理者から外す' : '管理者に任命する' }}
+      </button>
+    </div>
+    <div class="action">
+      <div>
+        <strong>メンバー</strong>
+        <p class="placeholder">
+          {{ isCommunityAdmin() ? '管理者は外せません。先に管理者から外してください。' : 'この連携コミュニティから外します。' }}
+        </p>
+      </div>
+      <button type="button" class="danger" [disabled]="processing() || isCommunityAdmin()" (click)="remove()">
+        連携コミュニティから外す
+      </button>
+    </div>
+  </div>
+} @else if (!application()) {
+  <p class="placeholder">この連携コミュニティのメンバーではありません。</p>
+}

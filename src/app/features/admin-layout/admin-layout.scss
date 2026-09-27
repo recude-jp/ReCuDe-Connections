@@ -1,0 +1,142 @@
+.admin-page {
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 32px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  h1 {
+    font-size: 1.25rem;
+    margin: 0;
+  }
+}
+
+.admin-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.scope-menu {
+  position: relative;
+}
+
+.scope-button,
+.scope-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid #d6d3d1;
+  border-radius: 999px;
+  background: #fff;
+  color: #1c1917;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.scope-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caret {
+  color: #78716c;
+  font-size: 0.75rem;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+}
+
+.scope-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 260px;
+  max-width: min(360px, 90vw);
+  margin: 0;
+  padding: 6px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  list-style: none;
+
+  button {
+    width: 100%;
+    border: none;
+    border-radius: 8px;
+    text-align: left;
+
+    &:hover {
+      background: #f5f5f4;
+    }
+
+    &.active {
+      background: #f0fdfa;
+      font-weight: 700;
+    }
+  }
+
+  .kind {
+    margin-left: auto;
+    padding-left: 8px;
+    color: #a8a29e;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+}
+
+.scope-single {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #57534e;
+  font-size: 0.9rem;
+}
+
+.missing {
+  color: #b91c1c;
+}
+
+.admin-menu {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e7e5e4;
+  overflow-x: auto;
+
+  a {
+    padding: 8px 16px;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: #57534e;
+    text-decoration: none;
+    font-size: 0.95rem;
+    white-space: nowrap;
+
+    &.active {
+      color: #0f766e;
+      border-bottom-color: #0f766e;
+      font-weight: 600;
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-page {
+    margin: 16px auto;
+    padding: 20px 16px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}

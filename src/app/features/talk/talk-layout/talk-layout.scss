@@ -1,0 +1,270 @@
+$accent: #0f766e;
+
+:host {
+  display: block;
+}
+
+.talk {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  // 会員向けレイアウトのヘッダ・タブバーを除いた高さいっぱいに広げ、一覧とトークをそれぞれスクロールさせる。
+  height: calc(100dvh - var(--app-header-height, 0px) - var(--app-tab-bar-height, 0px));
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #fff;
+  border-left: 1px solid #e7e5e4;
+  border-right: 1px solid #e7e5e4;
+}
+
+.sidebar {
+  overflow-y: auto;
+  border-right: 1px solid #e7e5e4;
+  background: #fafaf9;
+}
+
+.sidebar-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #fafaf9;
+  border-bottom: 1px solid #e7e5e4;
+
+  h1 {
+    font-size: 1.1rem;
+    margin: 0;
+  }
+}
+
+.new-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid $accent;
+  border-radius: 999px;
+  color: $accent;
+  font-size: 0.85rem;
+  text-decoration: none;
+
+  &:hover,
+  &.active {
+    background: #f0fdfa;
+  }
+}
+
+section h2 {
+  margin: 16px 16px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #78716c;
+}
+
+.error {
+  margin: 12px 16px 0;
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.placeholder {
+  margin: 16px;
+  color: #78716c;
+  font-size: 0.9rem;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.empty {
+  padding: 8px 16px 12px;
+  color: #a8a29e;
+  font-size: 0.85rem;
+
+  a {
+    color: $accent;
+  }
+}
+
+.invitations li {
+  margin: 0 12px 8px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+}
+
+.invitation-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+
+  span {
+    font-size: 0.8rem;
+    color: #78716c;
+  }
+}
+
+.invitation-actions {
+  display: flex;
+  gap: 8px;
+
+  button {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: inherit;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  }
+
+  .accept {
+    border: none;
+    background: $accent;
+    color: #fff;
+  }
+
+  .decline {
+    border: 1px solid #d6d3d1;
+    background: #fff;
+    color: #57534e;
+  }
+}
+
+.threads a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    background: #f5f5f4;
+  }
+
+  &.active {
+    background: #e7f5f3;
+  }
+}
+
+.avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e7e5e4;
+  color: #78716c;
+
+  &.group {
+    background: #ccfbf1;
+    color: $accent;
+  }
+}
+
+.thread-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.thread-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-last {
+  font-size: 0.8rem;
+  color: #78716c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-side {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.thread-time {
+  font-size: 0.7rem;
+  color: #a8a29e;
+}
+
+// アイコンの左上に未読の件数のバッジ(CountBadge)を重ねる。
+.avatar-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+
+.detail {
+  min-width: 0;
+  overflow: hidden;
+}
+
+// スマホ幅: 一覧とトーク画面を切り替える(LINEと同じ)。
+@media (max-width: 767px) {
+  .talk {
+    grid-template-columns: 1fr;
+    border: none;
+  }
+
+  .sidebar {
+    border-right: none;
+    background: #fff;
+  }
+
+  .sidebar-header {
+    background: #fff;
+  }
+
+  .detail {
+    display: none;
+  }
+
+  .talk.has-detail {
+    .sidebar {
+      display: none;
+    }
+
+    .detail {
+      display: block;
+    }
+  }
+}
+
+.guest-note {
+  margin: 12px 12px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef9c3;
+  color: #713f12;
+  font-size: 0.8rem;
+  line-height: 1.6;
+
+  a {
+    color: #0f766e;
+    font-weight: 600;
+  }
+}

@@ -1,0 +1,127 @@
+<div class="dashboard-page">
+  @if (memberSession(); as session) {
+    <app-setup-prompt-banner kind="member" settingsLink="/mypage/passkeys" />
+
+    @if (member(); as m) {
+      @if (!editing()) {
+        <div class="profile-head">
+          <app-member-avatar [photoPath]="m.photoPath" [name]="m.displayName" [text]="m.avatarText" [size]="72" />
+          <div>
+            <h2 class="name">{{ m.displayName }}さん</h2>
+            <p class="affiliation">
+              所属: {{ tenant()?.name ?? session.tenantId }}
+              @for (community of myCommunities(); track community.id) {
+                ／ {{ community.name }}
+              }
+            </p>
+            <p class="roles">
+              @if (session.isGuest) {
+                <span class="badge guest">{{ session.membership === 'community' ? '連携コミュニティのメンバー' : 'ゲスト' }}</span>
+              }
+              @if (session.isAdmin) {
+                <span class="badge">管理者</span>
+              }
+              @if (session.isRecommender) {
+                <span class="badge">認定推薦者</span>
+              }
+            </p>
+          </div>
+        </div>
+
+        @if (fields().length > 0) {
+          <dl class="profile">
+            @for (field of fields(); track field.id) {
+              <dt>{{ field.label }}</dt>
+              <dd>
+                {{ formatValue(allValues()[field.id], field) || '—' }}
+                @if (field.private) {
+                  <span class="private-note">非公開（本人と事務局だけ）</span>
+                }
+                @if (field.type === 'derived') {
+                  <span class="private-note">自動</span>
+                }
+              </dd>
+            }
+          </dl>
+        }
+
+        @if (session.isGuest) {
+          <p class="guest-note">
+            {{ session.membership === 'community' ? '連携コミュニティのメンバーとして' : 'ゲストとして' }}参加しています。{{ tenant()?.name }}の正規の会員になるには、<a routerLink="/mypage/membership">会員登録</a>から申請してください。
+          </p>
+        }
+
+        @if (successMessage()) {
+          <p class="success">{{ successMessage() }}</p>
+        }
+        <button type="button" class="edit" (click)="startEdit()">
+          {{ session.isGuest ? '名前・画像を編集する' : 'プロフィールを編集する' }}
+        </button>
+
+        <app-mypage-communities [member]="m" />
+      } @else {
+        <form class="edit-form" (ngSubmit)="save()">
+          <div class="photo-edit">
+            @if (draftPhotoUrl(); as url) {
+              <img class="photo-preview" [src]="url" alt="新しいプロフィール画像" />
+            } @else if (draftPhoto() === null) {
+              <app-member-avatar [name]="draftName()" [text]="draftAvatarText()" [size]="96" />
+            } @else {
+              <app-member-avatar [photoPath]="m.photoPath" [name]="draftName()" [text]="draftAvatarText()" [size]="96" />
+            }
+            <div class="photo-actions">
+              <label class="photo-button">
+                画像を選ぶ
+                <input type="file" accept="image/*" (change)="onPhotoSelected($event)" />
+              </label>
+              @if (m.photoPath || draftPhotoUrl()) {
+                <button type="button" class="link-button" (click)="removePhoto()">画像を外す</button>
+              }
+              <p class="hint">正方形に切り抜いて登録します。</p>
+            </div>
+          </div>
+
+          <label for="displayName">名前 <span class="required">必須</span></label>
+          <input
+            id="displayName"
+            name="displayName"
+            type="text"
+            maxlength="30"
+            [ngModel]="draftName()"
+            (ngModelChange)="draftName.set($event)"
+          />
+
+          <label for="avatarText">アイコンの文字（任意・2文字まで）</label>
+          <input
+            id="avatarText"
+            name="avatarText"
+            type="text"
+            class="avatar-text"
+            placeholder="例: 花子"
+            [ngModel]="draftAvatarText()"
+            (ngModelChange)="setAvatarText($event)"
+          />
+          <p class="hint">
+            プロフィール画像が無いときに、丸いアイコンに出す文字です。2文字なら同じ大きさで並べます。空のときは名前の最初と最後の1文字を出します。
+          </p>
+
+          <app-profile-form idPrefix="mypage" [fields]="fields()" [options]="options()" [(values)]="draftProfile" />
+
+          @if (errorMessage()) {
+            <p class="error">{{ errorMessage() }}</p>
+          }
+          <div class="actions">
+            <button type="submit" [disabled]="saving() || !draftName().trim() || missingFields().length > 0">
+              保存する
+            </button>
+            <button type="button" class="secondary" [disabled]="saving()" (click)="cancelEdit()">やめる</button>
+          </div>
+        </form>
+      }
+    } @else {
+      <p>読み込み中...</p>
+    }
+  } @else {
+    <p>読み込み中...</p>
+  }
+</div>

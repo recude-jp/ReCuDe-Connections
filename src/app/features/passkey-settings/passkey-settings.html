@@ -1,0 +1,133 @@
+<div class="list-page">
+  <p class="placeholder intro">この端末で、電話番号の認証コードを使わずにログインするための設定です。</p>
+
+  @if (!passkeySupported()) {
+    <p class="placeholder">このブラウザ・端末はパスキーに対応していません。</p>
+  }
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+  @if (successMessage()) {
+    <p class="success">{{ successMessage() }}</p>
+  }
+
+  @if (credentials(); as rows) {
+    @if (rows.length === 0) {
+      <p class="placeholder">登録済みのパスキーはありません。</p>
+    }
+    @for (credential of rows; track credential.credentialId) {
+      <div class="invite-item">
+        <div class="item-header">
+          <span class="invite-phone">{{ credential.deviceLabel }}</span>
+          @if (credential.backedUp) {
+            <span class="badge">クラウド保存</span>
+          }
+          @if (credential.credentialId === localCredentialId()) {
+            <span class="badge badge-own-device">本端末</span>
+          }
+        </div>
+        <div class="profile-summary">
+          @if (credential.lastUsedAt) {
+            最終利用: {{ formatDate(credential.lastUsedAt) }}
+          } @else {
+            未使用
+          }
+        </div>
+        <div class="button-row">
+          <button
+            type="button"
+            class="reject"
+            [disabled]="removingId() === credential.credentialId"
+            (click)="remove(credential.credentialId, credential.deviceLabel)"
+          >
+            削除する
+          </button>
+        </div>
+      </div>
+    }
+  } @else {
+    <p>読み込み中...</p>
+  }
+
+  @if (passkeySupported() && !deviceAlreadyRegistered()) {
+    <form (ngSubmit)="register()">
+      <label for="deviceLabel">パスキーの名前(任意)</label>
+      <input
+        id="deviceLabel"
+        name="deviceLabel"
+        type="text"
+        placeholder="例: iPhone"
+        [ngModel]="deviceLabel()"
+        (ngModelChange)="deviceLabel.set($event)"
+      />
+      <button type="submit" [disabled]="registering()">このデバイスにパスキーを追加</button>
+    </form>
+  }
+
+  <details class="pin-section" [open]="!passkeySupported()">
+    <summary [class.pin-summary-compact]="passkeySupported()">
+      @if (passkeySupported()) {
+        🔢 PINコードでもログインできるようにする
+      } @else {
+        PINログイン
+      }
+    </summary>
+
+    <p class="placeholder">
+      指紋認証・顔認証が使えない状況(クラムシェルモード等)向けの代替ログイン手段です。設定した端末でのみ使えます。
+    </p>
+
+    @if (pinDevices(); as pinRows) {
+      @if (pinRows.length === 0) {
+        <p class="placeholder">PINログインを設定した端末はありません。</p>
+      }
+      @for (device of pinRows; track device.deviceId) {
+        <div class="invite-item">
+          <span class="invite-phone">{{ device.deviceLabel }}</span>
+          <div class="profile-summary">
+            @if (device.lastUsedAt) {
+              最終利用: {{ formatDate(device.lastUsedAt) }}
+            } @else {
+              未使用
+            }
+          </div>
+          <div class="button-row">
+            <button
+              type="button"
+              class="reject"
+              [disabled]="removingPinDeviceId() === device.deviceId"
+              (click)="removePinDevice(device.deviceId)"
+            >
+              削除する
+            </button>
+          </div>
+        </div>
+      }
+    } @else {
+      <p>読み込み中...</p>
+    }
+
+    <form (ngSubmit)="setupPin()">
+      <label for="pinDeviceLabel">端末の名前(任意)</label>
+      <input
+        id="pinDeviceLabel"
+        name="pinDeviceLabel"
+        type="text"
+        placeholder="例: 自宅デスクトップ"
+        [ngModel]="pinDeviceLabel()"
+        (ngModelChange)="pinDeviceLabel.set($event)"
+      />
+      <label>この端末のPIN(6桁の数字)</label>
+      <app-pin-input
+        [value]="newPin()"
+        [disabled]="settingUpPin()"
+        [autoFocus]="false"
+        (valueChange)="newPin.set($event)"
+        (completed)="setupPin()"
+      />
+      <button type="submit" [disabled]="settingUpPin() || newPin().length !== 6">この端末にPINを設定</button>
+    </form>
+  </details>
+
+</div>

@@ -1,0 +1,8 @@
+{
+  "$comment": "全テナント共通スタンプのパック一覧。スタンプパネルのタブはこの順に並ぶ。手順は docs/stamps.md を参照。",
+  "packs": [
+    { "packId": "komame", "tabName": "こまめ" },
+    { "packId": "lumi", "tabName": "ルミ" },
+    { "packId": "luka", "tabName": "ルカ" }
+  ]
+}

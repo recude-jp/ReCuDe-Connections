@@ -1,0 +1,85 @@
+<section class="pack" [class.is-hidden]="pack().hidden">
+  <div class="pack-head">
+    <label class="name">
+      <span class="sr-only">パックの名前</span>
+      <input
+        type="text"
+        maxlength="20"
+        aria-label="パックの名前"
+        [ngModel]="name()"
+        (ngModelChange)="setName($event)"
+      />
+    </label>
+    <label class="publish">
+      <input type="checkbox" [ngModel]="!hidden()" (ngModelChange)="setHidden(!$event)" />
+      会員に公開する
+    </label>
+    <span class="state" [class.public]="!pack().hidden">{{ pack().hidden ? '非公開' : '公開中' }}</span>
+  </div>
+
+  <p class="hint">
+    {{ stamps().length }}/{{ limit }}個（パネルに出すもの {{ visibleCount() }}個）。スタンプは消せません。使わなくなったものは「非表示」にします（送信済みのメッセージでは表示したまま）。
+  </p>
+
+  <ul class="stamps">
+    @for (stamp of stamps(); track stamp.id; let i = $index, first = $first, last = $last) {
+      <li [class.is-hidden]="stamp.hidden">
+        <img [src]="stamp.url" [alt]="stamp.text || 'スタンプ'" width="72" height="72" loading="lazy" />
+        <input
+          type="text"
+          maxlength="20"
+          placeholder="文言（任意）"
+          [attr.aria-label]="'スタンプ' + (i + 1) + 'の文言'"
+          [ngModel]="stamp.text"
+          (ngModelChange)="updateStamp(i, { text: $event })"
+        />
+        <div class="stamp-actions">
+          <button type="button" [disabled]="first" aria-label="前へ" (click)="move(i, -1)">←</button>
+          <button type="button" [disabled]="last" aria-label="後ろへ" (click)="move(i, 1)">→</button>
+          <button type="button" (click)="updateStamp(i, { hidden: !stamp.hidden })">
+            {{ stamp.hidden ? '表示する' : '非表示' }}
+          </button>
+        </div>
+      </li>
+    } @empty {
+      <li class="empty">まだスタンプはありません。</li>
+    }
+  </ul>
+
+  <div class="add">
+    @if (previewUrl(); as src) {
+      <img [src]="src" alt="追加するスタンプ" width="72" height="72" />
+      <input
+        type="text"
+        maxlength="20"
+        placeholder="文言（任意）"
+        aria-label="追加するスタンプの文言"
+        [ngModel]="newText()"
+        (ngModelChange)="newText.set($event)"
+      />
+      <button type="button" class="primary" [disabled]="processing() || isFull()" (click)="addStamp()">追加する</button>
+      <button type="button" [disabled]="processing()" (click)="cancelNew()">やめる</button>
+    } @else if (!isFull()) {
+      <label class="file">
+        スタンプの画像を選ぶ
+        <input type="file" accept="image/*" (change)="onFileSelected($event)" />
+      </label>
+      <span class="hint">320×320の透過画像に整えて登録します（動かないスタンプ）。</span>
+    }
+  </div>
+
+  <div class="buttons">
+    <button type="button" class="primary" [disabled]="processing() || !dirty() || !name().trim()" (click)="save()">
+      保存する
+    </button>
+    @if (dirty()) {
+      <button type="button" [disabled]="processing()" (click)="discard()">変更を取り消す</button>
+    }
+    @if (successMessage()) {
+      <span class="success">{{ successMessage() }}</span>
+    }
+  </div>
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+</section>
