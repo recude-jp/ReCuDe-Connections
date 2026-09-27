@@ -15,6 +15,7 @@
 | [`SPEC.md`](SPEC.md) | 基本設計書（プロダクト概要・機能仕様・ロール・未確定事項） |
 | [`DEVELOPMENT.md`](DEVELOPMENT.md) | 開発ガイド（技術スタック・セットアップ・Emulatorでのローカル開発・GCPへのデプロイ） |
 | [`DEPLOY.md`](DEPLOY.md) | Firebaseへのデプロイ手順（既存プロジェクトへのデプロイ・新規プロジェクトの初期デプロイ） |
+| [`SECURITY-DEVELOPMENT.md`](SECURITY-DEVELOPMENT.md) | セキュリティ方針（検討中）: 会話の秘匿（E2EE の要否）、管理者のアクセス範囲、本番運用前の対策 |
 | [`docs/firestore-data-model.md`](docs/firestore-data-model.md) | Firestoreのデータモデル（コレクション構造・ID設計・セキュリティモデル） |
 | [`docs/stamps.md`](docs/stamps.md) | 共通スタンプの運用手順（追加・差し替え・修正・廃止・ロールバック） |
 
