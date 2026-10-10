@@ -7,7 +7,7 @@ const MAX_WIDTH = 240;
 const MAX_HEIGHT = 320;
 
 /**
- * 画像メッセージのサムネイル。ダウンロードURLは非同期で取得するため、読み込むまでは元の縦横比の枠を出して
+ * 画像メッセージのサムネイル。画像は非同期で取得する(暗号化した画像は端末で復号する)ため、読み込むまでは元の縦横比の枠を出して
  * 一覧のスクロール位置がずれないようにする。押すと拡大表示(open)を親に伝える。
  */
 @Component({
@@ -54,6 +54,8 @@ export class MessageImage {
   private readonly roomService = inject(RoomService);
 
   readonly media = input.required<MessageMedia>();
+  /** 画像のあるルーム(暗号化した画像を復号するのに使う)。 */
+  readonly roomId = input.required<string>();
   /** 拡大表示する元画像のURL。 */
   readonly open = output<string>();
 
@@ -68,9 +70,8 @@ export class MessageImage {
 
   constructor() {
     effect(() => {
-      const thumbPath = this.media().thumbPath;
       this.roomService
-        .getMediaUrl(thumbPath)
+        .getMediaUrl(this.roomId(), this.media(), 'thumb')
         .then((url) => this.url.set(url))
         .catch(() => this.failed.set(true));
     });
@@ -78,7 +79,7 @@ export class MessageImage {
 
   async openOriginal(): Promise<void> {
     try {
-      this.open.emit(await this.roomService.getMediaUrl(this.media().path));
+      this.open.emit(await this.roomService.getMediaUrl(this.roomId(), this.media(), 'original'));
     } catch {
       this.failed.set(true);
     }

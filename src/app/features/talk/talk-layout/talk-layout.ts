@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
@@ -9,6 +9,10 @@ import { RoomService } from '../../../core/services/room.service';
 import { MemberService } from '../../../core/services/member.service';
 import { MemberAvatar } from '../../../shared/member-avatar/member-avatar';
 import { CountBadge } from '../../../shared/count-badge/count-badge';
+import { E2eeGate } from '../e2ee-gate/e2ee-gate';
+import { E2eeService } from '../../../core/services/e2ee.service';
+import type { MessageContent, Thread } from '../../../core/models/firestore.models';
+import type { WithId } from '../../../core/services/room.service';
 import { formatMessageTime } from '../../../core/utils/dates';
 import { toErrorMessage } from '../../../core/utils/errors';
 
@@ -24,7 +28,7 @@ interface AvatarInfo {
 
 @Component({
   selector: 'app-talk-layout',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, FaIconComponent, MemberAvatar, CountBadge],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, FaIconComponent, MemberAvatar, CountBadge, E2eeGate],
   templateUrl: './talk-layout.html',
   styleUrl: './talk-layout.scss',
 })
@@ -33,8 +37,37 @@ export class TalkLayout {
   private readonly roomService = inject(RoomService);
   private readonly memberService = inject(MemberService);
   private readonly router = inject(Router);
+  private readonly e2ee = inject(E2eeService);
 
   readonly icons = { group: faUsers, plus: faPlus };
+
+  /** トークの暗号鍵の準備ができているか(できていなければ、一覧の代わりに準備の画面を出す)。 */
+  readonly e2eeState = this.e2ee.state;
+
+  /** 最新メッセージのプレビュー(暗号化したものは端末で復号する。ルームID → 文)。 */
+  private readonly previews = signal(new Map<string, { messageId: string; text: string }>());
+
+  constructor() {
+    // 暗号化した最新メッセージ(テキスト)を復号して、プレビューに出す。
+    effect(() => {
+      const threads = this.threads() ?? [];
+      if (this.e2ee.state() !== 'ready') {
+        return;
+      }
+      for (const thread of threads) {
+        const enc = thread.lastMessageEnc;
+        if (enc && thread.lastMessageText === 'メッセージ' && this.previews().get(thread.id)?.messageId !== enc.messageId) {
+          void this.decryptPreview(thread.id, enc);
+        }
+      }
+    });
+  }
+
+  /** トーク一覧に出す最新メッセージ(復号できなければ、サーバーが付けた「メッセージ」などの要約)。 */
+  previewOf(thread: WithId<Thread>): string {
+    const preview = this.previews().get(thread.id);
+    return preview && preview.messageId === thread.lastMessageEnc?.messageId ? preview.text : thread.lastMessageText;
+  }
 
   readonly threads = toSignal(
     this.auth.session$.pipe(
@@ -115,6 +148,20 @@ export class TalkLayout {
       this.errorMessage.set(toErrorMessage(err));
     } finally {
       this.respondingRoomId.set(null);
+    }
+  }
+
+  private async decryptPreview(roomId: string, enc: NonNullable<Thread['lastMessageEnc']>): Promise<void> {
+    try {
+      const content = await this.e2ee.decryptMessage<MessageContent>(roomId, enc.messageId, enc.senderId, enc);
+      const text = (content?.text ?? '').replace(/\s+/g, ' ').trim();
+      if (text) {
+        this.previews.update((map) =>
+          new Map(map).set(roomId, { messageId: enc.messageId, text: text.length > 60 ? `${text.slice(0, 60)}…` : text }),
+        );
+      }
+    } catch {
+      // 復号できないときは、サーバーが付けた要約のまま出す。
     }
   }
 }

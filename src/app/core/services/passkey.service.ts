@@ -20,6 +20,12 @@ export type PasskeyKind = 'member' | 'admin';
 
 const LOCAL_HINT_KEY_PREFIX = 'recude-match:has-passkey:';
 const LOCAL_CREDENTIAL_ID_KEY_PREFIX = 'recude-match:passkey-credential-id:';
+const LOCAL_LOGIN_IDS_KEY = 'recude-match:passkey-login-ids';
+
+/** ログイン画面で入力したIDを、端末の記録と比べられる形にする(サーバーと同じく小文字に揃える)。 */
+export function normalizeLoginIdentifier(identifier: string): string {
+  return identifier.normalize('NFKC').trim().toLowerCase();
+}
 
 @Injectable({ providedIn: 'root' })
 export class PasskeyService {
@@ -43,6 +49,40 @@ export class PasskeyService {
       localStorage.setItem(LOCAL_HINT_KEY_PREFIX + kind, '1');
     } else {
       localStorage.removeItem(LOCAL_HINT_KEY_PREFIX + kind);
+    }
+  }
+
+  /**
+   * この端末でパスキーを使ってログインした(または登録した)ログインIDの記録。ログイン画面で、
+   * 入力したIDのパスキーを試すかどうかの目安にする。記録が無くても、IDごとの記録を入れる前に
+   * パスキーを登録した端末(hasLocalPasskeyHint)なら試す。
+   */
+  shouldTryPasskeyFor(identifier: string): boolean {
+    if (!this.isSupported()) {
+      return false;
+    }
+    const ids = this.readLocalLoginIds();
+    return ids.length > 0
+      ? ids.includes(normalizeLoginIdentifier(identifier))
+      : this.hasLocalPasskeyHint('member');
+  }
+
+  rememberPasskeyFor(identifiers: (string | null | undefined)[]): void {
+    const ids = new Set(this.readLocalLoginIds());
+    identifiers.forEach((id) => id && ids.add(normalizeLoginIdentifier(id)));
+    try {
+      localStorage.setItem(LOCAL_LOGIN_IDS_KEY, JSON.stringify([...ids]));
+    } catch {
+      // 保存できない環境(プライベートブラウズなど)では、記録なしで動かす。
+    }
+  }
+
+  private readLocalLoginIds(): string[] {
+    try {
+      const parsed: unknown = JSON.parse(localStorage.getItem(LOCAL_LOGIN_IDS_KEY) ?? '[]');
+      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+    } catch {
+      return [];
     }
   }
 
@@ -84,8 +124,9 @@ export class PasskeyService {
   /**
    * ログイン画面から呼ぶ。パスキーでの認証に成功したらFirebase Authのカスタムトークンを返す。
    * Firebase Authへのサインイン自体はAuthServiceの責務。
+   * identifier(入力したログインID)を渡すと、パスキーがそのIDの会員のものかをサーバーで確かめる。
    */
-  async login(): Promise<{ customToken: string; credentialId: string }> {
+  async login(identifier?: string): Promise<{ customToken: string; credentialId: string }> {
     const start = httpsCallable<
       Record<string, never>,
       { requestId: string; options: PublicKeyCredentialRequestOptionsJSON }
@@ -95,10 +136,14 @@ export class PasskeyService {
     const assertionResponse = await startAuthentication({ optionsJSON: data.options });
 
     const complete = httpsCallable<
-      { requestId: string; credential: AuthenticationResponseJSON },
+      { requestId: string; credential: AuthenticationResponseJSON; identifier?: string },
       { customToken: string; credentialId: string }
     >(this.functions, 'completePasskeyAuthentication');
-    const { data: result } = await complete({ requestId: data.requestId, credential: assertionResponse });
+    const { data: result } = await complete({
+      requestId: data.requestId,
+      credential: assertionResponse,
+      ...(identifier ? { identifier } : {}),
+    });
     return result;
   }
 

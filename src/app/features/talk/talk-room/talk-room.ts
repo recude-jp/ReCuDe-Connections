@@ -8,7 +8,8 @@ import { combineLatest, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { AuthService, MemberSession } from '../../../core/services/auth.service';
 import { MemberService } from '../../../core/services/member.service';
 import { RoomService, WithId } from '../../../core/services/room.service';
-import type { Member, RoomMessage, StampRef } from '../../../core/models/firestore.models';
+import type { Member, MessageContent, RoomMessage, StampRef } from '../../../core/models/firestore.models';
+import { E2eeService, RoomKeyContext } from '../../../core/services/e2ee.service';
 import { MESSAGE_TEMPLATES, politenessTierFor } from '../../../core/utils/message-templates';
 import { prepareImage } from '../../../core/utils/image';
 import { MessageImage } from '../message-image/message-image';
@@ -24,6 +25,17 @@ import { toErrorMessage } from '../../../core/utils/errors';
 
 /** 一度に読むメッセージの件数(遡るときはこの件数ずつ増やす。SPEC 5-7)。 */
 const PAGE_SIZE = 30;
+
+/** 鍵が届いていないメッセージを、読み直す間隔(ほかのメンバーが鍵を渡してくれるのを待つ)。 */
+const KEY_RETRY_MS = 15_000;
+
+/**
+ * 表示するメッセージ。暗号化したメッセージは、復号した中身(text・stamp・media)を重ねる。
+ * decrypt: plain(暗号化を入れる前のメッセージ)、ok(復号できた)、pending(復号中)、no-key(鍵がまだ届いていない)、error(復号できない)。
+ */
+export type DisplayMessage = WithId<RoomMessage> & { decrypt: 'plain' | 'ok' | 'pending' | 'no-key' | 'error' };
+
+type DecryptResult = { status: 'ok'; content: MessageContent } | { status: 'no-key' } | { status: 'error' };
 
 /**
  * トーク画面(/talk/rooms/:roomId)。1対1・グループ共通。
@@ -56,6 +68,7 @@ export class TalkRoom {
   private readonly auth = inject(AuthService);
   private readonly roomService = inject(RoomService);
   private readonly memberService = inject(MemberService);
+  private readonly e2ee = inject(E2eeService);
 
   readonly icons = { back: faChevronLeft, info: faCircleInfo, stamp: faFaceSmile, image: faImage };
   readonly templates = MESSAGE_TEMPLATES;
@@ -126,6 +139,36 @@ export class TalkRoom {
     { initialValue: new Map<string, Member>() },
   );
 
+  /** ルームの鍵を探す・作るのに使う、ルームの情報。 */
+  private readonly roomKeyContext = computed<RoomKeyContext | null>(() => {
+    const room = this.room();
+    return room ? { id: room.id, memberIds: room.memberIds, keyEpoch: room.keyEpoch } : null;
+  });
+
+  /** 復号した中身(メッセージID → 結果)。 */
+  private readonly decrypted = signal(new Map<string, DecryptResult>());
+  private readonly decrypting = new Set<string>();
+
+  /** 表示するメッセージ(暗号化したものは復号した中身を重ねる)。 */
+  readonly displayMessages = computed<DisplayMessage[]>(() => {
+    const results = this.decrypted();
+    return this.messages().map((message) => {
+      if (!message.enc) {
+        return { ...message, decrypt: 'plain' as const };
+      }
+      const result = results.get(message.id);
+      if (!result) {
+        return { ...message, decrypt: 'pending' as const };
+      }
+      return result.status === 'ok'
+        ? { ...message, ...result.content, decrypt: 'ok' as const }
+        : { ...message, decrypt: result.status };
+    });
+  });
+
+  /** 鍵が届いていないメッセージがあるか(あれば、しばらくしてから読み直す)。 */
+  private readonly hasMissingKeys = computed(() => this.displayMessages().some((m) => m.decrypt === 'no-key'));
+
   readonly isGroup = computed(() => this.room()?.type === 'group');
 
   readonly otherMember = computed(() => {
@@ -192,6 +235,46 @@ export class TalkRoom {
       }
     });
 
+    // ルームを切り替えたら、復号の結果を捨てる。
+    effect(() => {
+      this.roomId();
+      this.decrypted.set(new Map());
+      this.decrypting.clear();
+    });
+
+    // 暗号化したメッセージを復号する(新しいメッセージが届いたとき・鍵の準備ができたとき)。
+    effect(() => {
+      const messages = this.messages();
+      const roomId = this.roomId();
+      if (this.e2ee.state() !== 'ready') {
+        return;
+      }
+      for (const message of messages) {
+        if (message.enc && !this.decrypted().has(message.id)) {
+          void this.decryptOne(roomId, message);
+        }
+      }
+    });
+
+    // 鍵が届いていないメッセージは、ほかのメンバーが鍵を渡してくれるまで、しばらくおきに読み直す。
+    effect((onCleanup) => {
+      if (!this.hasMissingKeys()) {
+        return;
+      }
+      const timer = setInterval(() => {
+        this.decrypted.update((map) => new Map([...map].filter(([, result]) => result.status !== 'no-key')));
+      }, KEY_RETRY_MS);
+      onCleanup(() => clearInterval(timer));
+    });
+
+    // ルームを開いたら、今の世代の鍵をまだ持っていないメンバー(加わったばかり・鍵を作り直した人)に渡す。
+    effect(() => {
+      const context = this.roomKeyContext();
+      if (context && this.e2ee.state() === 'ready') {
+        void this.e2ee.distributeRoomKey(context).catch(() => undefined);
+      }
+    });
+
     // 開いているルームに未読があれば既読にする(新着が届いたときも同様)。
     effect(() => {
       const session = this.memberSession();
@@ -201,6 +284,25 @@ export class TalkRoom {
         void this.roomService.markRead(session.tenantId, session.memberId, roomId).catch(() => undefined);
       }
     });
+  }
+
+  private async decryptOne(roomId: string, message: WithId<RoomMessage>): Promise<void> {
+    if (this.decrypting.has(message.id)) {
+      return;
+    }
+    this.decrypting.add(message.id);
+    let result: DecryptResult;
+    try {
+      const content = await this.e2ee.decryptMessage<MessageContent>(roomId, message.id, message.senderId, message.enc!);
+      result = content ? { status: 'ok', content } : { status: 'no-key' };
+    } catch {
+      result = { status: 'error' };
+    } finally {
+      this.decrypting.delete(message.id);
+    }
+    if (roomId === this.roomId()) {
+      this.decrypted.update((map) => new Map(map).set(message.id, result));
+    }
   }
 
   loadOlder(): void {
@@ -214,15 +316,16 @@ export class TalkRoom {
 
   async sendText(): Promise<void> {
     const session = this.memberSession();
+    const room = this.roomKeyContext();
     const text = this.draftText().trim();
-    if (!session || !text) {
+    if (!session || !room || !text) {
       return;
     }
     this.errorMessage.set('');
     this.sending.set(true);
     this.scrollToBottom = true;
     try {
-      await this.roomService.sendText(session.tenantId, this.roomId(), session.memberId, text);
+      await this.roomService.sendText(session.tenantId, room, session.memberId, text);
       this.draftText.set('');
     } catch (err) {
       this.errorMessage.set(toErrorMessage(err));
@@ -237,13 +340,14 @@ export class TalkRoom {
 
   async sendStamp(stamp: StampRef): Promise<void> {
     const session = this.memberSession();
-    if (!session) {
+    const room = this.roomKeyContext();
+    if (!session || !room) {
       return;
     }
     this.errorMessage.set('');
     this.scrollToBottom = true;
     try {
-      await this.roomService.sendStamp(session.tenantId, this.roomId(), session.memberId, stamp);
+      await this.roomService.sendStamp(session.tenantId, room, session.memberId, stamp);
       // 送ったスタンプがトークに出たら、スタンプのパネルを閉じる(送れなかったときは選び直せるよう開いたまま)。
       this.stampPanelOpen.set(false);
     } catch (err) {
@@ -256,7 +360,8 @@ export class TalkRoom {
     const file = input.files?.[0];
     input.value = '';
     const session = this.memberSession();
-    if (!file || !session) {
+    const room = this.roomKeyContext();
+    if (!file || !session || !room) {
       return;
     }
     this.errorMessage.set('');
@@ -268,7 +373,7 @@ export class TalkRoom {
     queueMicrotask(() => this.messagesEnd()?.nativeElement.scrollIntoView({ block: 'end' }));
     try {
       const image = await prepareImage(file);
-      await this.roomService.sendImage(session.tenantId, this.roomId(), session.memberId, image, (progress) =>
+      await this.roomService.sendImage(session.tenantId, room, session.memberId, image, (progress) =>
         this.uploads.update((list) => list.map((u) => (u.id === id ? { ...u, progress } : u))),
       );
     } catch (err) {
@@ -359,7 +464,7 @@ export class TalkRoom {
 
   /** グループで、直前と送信者が変わったメッセージにだけ送信者名を出す。 */
   showSender(index: number): boolean {
-    const messages = this.messages();
+    const messages = this.displayMessages();
     const message = messages[index];
     return this.isGroup() && !this.isMine(message) && messages[index - 1]?.senderId !== message.senderId;
   }

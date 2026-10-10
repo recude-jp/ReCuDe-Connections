@@ -1,0 +1,135 @@
+<p class="intro">
+  トップページの公開フォームから届いた、招待の申請です。ご利用の条件（東京岐阜県人会の会員か、連携している在京同窓会の会員）を
+  名簿などで確かめてから、招待を送ってください。招待した人は、操作した管理者（あなた）になります。
+</p>
+
+<div class="filters" role="tablist">
+  <button type="button" role="tab" [class.active]="filter() === 'pending'" [attr.aria-selected]="filter() === 'pending'"
+    (click)="filter.set('pending')">
+    確認待ち（{{ pendingCount() }}）
+  </button>
+  <button type="button" role="tab" [class.active]="filter() === 'handled'" [attr.aria-selected]="filter() === 'handled'"
+    (click)="filter.set('handled')">
+    対応済み
+  </button>
+</div>
+
+@if (errorMessage()) {
+  <p class="error">{{ errorMessage() }}</p>
+}
+@if (successMessage()) {
+  <p class="success">{{ successMessage() }}</p>
+}
+
+@if (list(); as rows) {
+  @if (rows.length === 0) {
+    <p class="placeholder">{{ filter() === 'pending' ? '確認待ちの申請はありません。' : '対応済みの申請はありません。' }}</p>
+  }
+  @for (r of rows; track r.id) {
+    <article class="request">
+      <header>
+        <strong class="name">{{ r.name }}</strong>
+        <span class="date">{{ formatDate(r.createdAt) }} 申請</span>
+        @if (r.status === 'invited') {
+          <span class="state invited">招待済み</span>
+        } @else if (r.status === 'declined') {
+          <span class="state declined">見送り</span>
+        }
+      </header>
+
+      @if (r.alreadyJoined || r.alreadyInvited) {
+        <p class="warning">
+          @if (r.alreadyJoined) {
+            申請の時点で、この電話番号の方はすでに参加していました。
+          } @else {
+            申請の時点で、この電話番号にはすでに招待が送られていました。
+          }
+        </p>
+      }
+
+      <dl>
+        <dt>電話番号</dt>
+        <dd>{{ phoneText(r.phoneNumber) }}</dd>
+        @if (r.email) {
+          <dt>メール</dt>
+          <dd>{{ r.email }}</dd>
+        }
+        <dt>出身地</dt>
+        <dd>{{ r.hometown }}</dd>
+        <dt>出身校</dt>
+        <dd>
+          {{ r.highSchool || '—' }}
+          @if (r.juniorHighSchool) {
+            ／ {{ r.juniorHighSchool }}
+          }
+        </dd>
+        <dt>県人会</dt>
+        <dd [class.yes]="r.kenjinkaiMember">{{ r.kenjinkaiMember ? '会員' : 'いいえ' }}</dd>
+        <dt>在京同窓会</dt>
+        <dd [class.yes]="r.alumniMember">{{ alumniText(r) }}</dd>
+        @if (r.referrer) {
+          <dt>紹介者</dt>
+          <dd>{{ r.referrer }}</dd>
+        }
+        @if (r.note) {
+          <dt>ご連絡</dt>
+          <dd class="note">{{ r.note }}</dd>
+        }
+      </dl>
+
+      @if (r.status === 'pending') {
+        @if (decliningId() === r.id) {
+          <div class="decline-form">
+            <label [for]="'reason-' + r.id">見送る理由（事務局のメモ。申請者には送られません）</label>
+            <textarea [id]="'reason-' + r.id" rows="2" maxlength="500"
+              [ngModel]="declineReason()" (ngModelChange)="declineReason.set($event)"></textarea>
+            <div class="actions">
+              <button type="button" class="danger" [disabled]="busyId() === r.id" (click)="decline(r)">見送る</button>
+              <button type="button" class="plain" [disabled]="busyId() === r.id" (click)="decliningId.set(null)">キャンセル</button>
+            </div>
+          </div>
+        } @else {
+          <div class="invite-form">
+            <label>
+              招待先
+              <select [ngModel]="draftOf(r).communityId" (ngModelChange)="updateDraft(r, { communityId: $event })">
+                <option value="">ルートコミュニティ（ゲストとして参加）</option>
+                @for (c of scopes.communities() ?? []; track c.id) {
+                  <option [value]="c.id">{{ c.name }}</option>
+                }
+              </select>
+            </label>
+            @if (r.email) {
+              <label>
+                送り先
+                <select [ngModel]="draftOf(r).channel" (ngModelChange)="updateDraft(r, { channel: $event })">
+                  <option value="sms">SMS（{{ phoneText(r.phoneNumber) }}）</option>
+                  <option value="email">メール（{{ r.email }}）</option>
+                </select>
+              </label>
+            }
+            <div class="actions">
+              <button type="button" class="primary" [disabled]="busyId() === r.id" (click)="invite(r)">招待を送る</button>
+              <button type="button" class="plain" [disabled]="busyId() === r.id" (click)="startDecline(r)">見送る</button>
+            </div>
+          </div>
+        }
+      } @else {
+        <p class="handled">
+          {{ formatDate(r.handledAt) }}
+          @if (handlerName(r)) {
+            ・{{ handlerName(r) }}
+          }
+          @if (r.status === 'invited') {
+            ・招待先: {{ communityName(r.invitedCommunityId) || 'ルートコミュニティ' }}
+          }
+          @if (r.declineReason) {
+            <br />理由: {{ r.declineReason }}
+          }
+        </p>
+      }
+    </article>
+  }
+} @else {
+  <p class="placeholder">読み込み中...</p>
+}

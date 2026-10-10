@@ -84,11 +84,26 @@ export class InviteService {
    * 電話番号でログインしたあと、参加する(ルートコミュニティへの招待はゲスト、連携コミュニティへの招待はそのメンバーになる)。
    * 既に参加している人は、連携コミュニティへの招待ならその所属が加わり、そうでなければそのまま返る。
    */
-  async joinAsGuest(code: string | null, displayName: string, agreedToTerms = false): Promise<JoinResult> {
-    const fn = httpsCallable<{ code?: string; displayName: string; agreedToTerms: boolean }, JoinResult>(
-      this.functions,
-      'joinAsGuest',
-    );
-    return (await fn({ ...(code ? { code } : {}), displayName, agreedToTerms })).data;
+  /** loginId・agreedToAdminAccess は新しく参加する人だけが渡す(すでにアカウントがある人は不要)。 */
+  async joinAsGuest(
+    code: string | null,
+    displayName: string,
+    agreedToTerms = false,
+    loginId?: string,
+    agreedToAdminAccess?: boolean,
+  ): Promise<JoinResult> {
+    const fn = httpsCallable<
+      { code?: string; displayName: string; agreedToTerms: boolean; loginId?: string; agreedToAdminAccess?: boolean },
+      JoinResult
+    >(this.functions, 'joinAsGuest');
+    return (
+      await fn({
+        ...(code ? { code } : {}),
+        displayName,
+        agreedToTerms,
+        ...(loginId ? { loginId } : {}),
+        ...(agreedToAdminAccess !== undefined ? { agreedToAdminAccess } : {}),
+      })
+    ).data;
   }
 }

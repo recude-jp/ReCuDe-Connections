@@ -1,11 +1,27 @@
 import { Routes } from '@angular/router';
 import { memberGuard } from './core/guards/member.guard';
+import { landingGuard } from './core/guards/landing.guard';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'login' },
+  // トップページ(サービスの紹介)。ログイン前に誰でも見られる。ログイン中の会員はトークへ転送する。
+  {
+    path: '',
+    pathMatch: 'full',
+    canMatch: [landingGuard],
+    loadComponent: () => import('./features/landing/landing').then((m) => m.Landing),
+  },
+  {
+    path: 'about',
+    loadComponent: () => import('./features/landing/landing').then((m) => m.Landing),
+  },
   {
     path: 'login',
     loadComponent: () => import('./features/member-login/member-login').then((m) => m.MemberLogin),
+  },
+  // 招待の申請(会員に知り合いがいない人向けの公開フォーム)。事務局が確認して招待を送る。
+  {
+    path: 'request',
+    loadComponent: () => import('./features/invite-request/invite-request').then((m) => m.InviteRequestPage),
   },
   {
     path: 'join',

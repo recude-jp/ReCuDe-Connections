@@ -1,5 +1,5 @@
 import { Component, input, model } from '@angular/core';
-import type { ProfileField, ProfileValues } from '../../core/models/firestore.models';
+import type { ProfileField, ProfileValues, ProfileVisibility } from '../../core/models/firestore.models';
 import { previewDerivedValue } from '../../core/utils/profile-fields';
 import { parseYearMonth } from '../../core/utils/profile-converters';
 
@@ -19,8 +19,23 @@ export class ProfileForm {
   /** 自由入力・複数入力の入力候補(項目ID → 候補)。 */
   readonly options = input<Partial<Record<string, string[]>>>({});
   readonly values = model<ProfileValues>({});
+  /**
+   * 項目ごとの公開範囲(本人が選ぶ。未設定は非公開。SECURITY-DEVELOPMENT.md 7章)。
+   * showVisibility のときだけ選ぶ欄を出す。
+   */
+  readonly visibility = model<Record<string, ProfileVisibility>>({});
+  readonly showVisibility = input(false);
   /** フォーム内で id が重ならないように付ける接頭辞。 */
   readonly idPrefix = input('profile');
+
+  /** 項目の公開範囲(管理者が非公開に決めた項目は、常に非公開)。未設定は undefined。 */
+  visibilityOf(field: ProfileField): ProfileVisibility | undefined {
+    return field.private ? 'private' : this.visibility()[field.id];
+  }
+
+  setVisibility(fieldId: string, value: ProfileVisibility): void {
+    this.visibility.update((current) => ({ ...current, [fieldId]: value }));
+  }
 
   /** 年月の項目で選べる年(新しい順。今年から100年前まで)。 */
   readonly years = Array.from({ length: 101 }, (_, i) => new Date().getFullYear() - i);

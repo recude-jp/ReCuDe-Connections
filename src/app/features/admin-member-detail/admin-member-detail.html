@@ -26,7 +26,11 @@
 
   <dl class="profile">
     <dt>電話番号</dt>
-    <dd>{{ m.phoneNumber }}</dd>
+    <dd>{{ phoneOf(m) }}</dd>
+    <dt>ログインID</dt>
+    <dd>{{ loginIdOf() }}</dd>
+    <dt>メールアドレス</dt>
+    <dd>{{ emailOf() }}</dd>
     @for (field of profileFields(); track field.id) {
       @if (!field.hidden || valueOf(m, field.id)) {
         <dt>{{ field.label }}{{ field.hidden ? '（非表示の項目）' : '' }}</dt>

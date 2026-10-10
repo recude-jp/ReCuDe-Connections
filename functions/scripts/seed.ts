@@ -13,7 +13,7 @@ import * as admin from 'firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { buildMemberClaims } from '../src/memberClaims';
 import type { Community, Member, ProfileField, ProfileValues, Room, RoomMember, RoomMessage, StampRef, Thread } from '../src/models';
-import { applyDerivedValues } from '../src/profile';
+import { applyDerivedValues, splitProfileValues } from '../src/profile';
 
 process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || 'localhost:9099';
@@ -26,7 +26,7 @@ const db = admin.firestore();
 
 const TENANT_ID = 'gifu-tokyo';
 
-type SeedMember = Omit<Member, 'createdAt'> & { id: string };
+type SeedMember = Omit<Member, 'createdAt' | 'phoneNumber'> & { id: string; phoneNumber: string };
 
 /** 東京岐阜県人会のプロフィール項目(管理画面の「プロフィール項目」で変えられる)。名前・プロフィール画像は固定項目。 */
 const PROFILE_FIELDS: ProfileField[] = [
@@ -449,16 +449,32 @@ async function seed(): Promise<void> {
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  for (const { id, ...member } of MEMBERS) {
-    // 年代(自動計算)を生年月から決め、生年月は非公開の場所に置く。
-    const privateValues: ProfileValues = BIRTH_YEAR_MONTHS[id] ? { birthYearMonth: BIRTH_YEAR_MONTHS[id] } : {};
-    const profile = { ...(member.profile ?? {}) };
-    delete profile['ageGroup'];
-    applyDerivedValues(PROFILE_FIELDS, profile, privateValues, {});
+  for (const { id, phoneNumber, ...member } of MEMBERS) {
+    // 年代(自動計算)を生年月から決める。値はすべて非公開の場所(private/profile)に置き、公開にした項目だけを会員データに写す。
+    // 投入する会員は、検索などを試せるよう全項目を「公開」にしておく(生年月は管理者が非公開に決めた項目なので非公開のまま)。
+    const allValues: ProfileValues = { ...(member.profile ?? {}) };
+    delete allValues['ageGroup'];
+    if (BIRTH_YEAR_MONTHS[id]) {
+      allValues['birthYearMonth'] = BIRTH_YEAR_MONTHS[id];
+    }
+    applyDerivedValues(PROFILE_FIELDS, allValues, {});
+    const visibility = Object.fromEntries(
+      PROFILE_FIELDS.map((f) => [f.id, f.private ? 'private' : 'public'] as const),
+    );
+    const { publicValues: profile, privateValues } = splitProfileValues(PROFILE_FIELDS, allValues, visibility);
     // パスキー・PINの登録(サブコレクション)を消さないよう、会員ドキュメントだけを上書きする。
+    // 電話番号は会員データには置かず、本人と管理者だけが読める private/login に置く(SECURITY-DEVELOPMENT.md 7章)。
     await db.doc(`tenants/${TENANT_ID}/members/${id}`).set({ ...member, profile, createdAt: FieldValue.serverTimestamp() });
-    await db.doc(`tenants/${TENANT_ID}/members/${id}/private/profile`).set({ values: privateValues, updatedAt: FieldValue.serverTimestamp() });
-    await db.doc(`phoneIndex/${member.phoneNumber}`).set({ tenantId: TENANT_ID, memberId: id });
+    await db.doc(`tenants/${TENANT_ID}/members/${id}/private/profile`).set({
+      values: privateValues,
+      visibility,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await db.doc(`tenants/${TENANT_ID}/members/${id}/private/login`).set(
+      { phoneNumber, adminAccessConsentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    await db.doc(`phoneIndex/${phoneNumber}`).set({ tenantId: TENANT_ID, memberId: id });
   }
 
   await clearTalkData();

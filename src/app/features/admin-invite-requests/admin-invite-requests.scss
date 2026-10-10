@@ -1,0 +1,191 @@
+@use '../admin-layout/admin-shared';
+
+$accent: #0f766e;
+$line: #e7e5e4;
+$muted: #57534e;
+
+.intro {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  color: $muted;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+
+  button {
+    padding: 6px 14px;
+    border: 1px solid #d6d3d1;
+    border-radius: 999px;
+    background: #fff;
+    color: $muted;
+    font-size: 0.85rem;
+    cursor: pointer;
+
+    &.active {
+      border-color: $accent;
+      background: #f0fdfa;
+      color: $accent;
+      font-weight: 600;
+    }
+  }
+}
+
+.request {
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid $line;
+  border-radius: 8px;
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+  }
+
+  .name {
+    font-size: 1.05rem;
+  }
+
+  .date {
+    color: #78716c;
+    font-size: 0.8rem;
+  }
+}
+
+.state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+
+  &.invited {
+    background: #f0fdfa;
+    color: $accent;
+  }
+
+  &.declined {
+    background: #f5f5f4;
+    color: $muted;
+  }
+}
+
+.warning {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fef9c3;
+  color: #854d0e;
+  font-size: 0.85rem;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 6.5em 1fr;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+
+  dt {
+    color: #78716c;
+  }
+
+  dd {
+    margin: 0;
+    word-break: break-all;
+
+    &.yes {
+      color: $accent;
+      font-weight: 600;
+    }
+
+    &.note {
+      white-space: pre-wrap;
+    }
+  }
+}
+
+.invite-form,
+.decline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  padding-top: 12px;
+  border-top: 1px dashed $line;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: $muted;
+    font-size: 0.8rem;
+  }
+
+  select,
+  textarea {
+    padding: 8px 10px;
+    border: 1px solid #d6d3d1;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+}
+
+.decline-form {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+
+  button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .primary {
+    border: none;
+    background: $accent;
+    color: #fff;
+  }
+
+  .danger {
+    border: none;
+    background: #b91c1c;
+    color: #fff;
+  }
+
+  .plain {
+    border: 1px solid #d6d3d1;
+    background: #fff;
+    color: $muted;
+  }
+}
+
+.handled {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px dashed $line;
+  color: #78716c;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 767px) {
+  .invite-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

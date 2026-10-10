@@ -53,6 +53,30 @@ export class AdminMemberDetail {
     { initialValue: {} as Record<string, string | string[]> },
   );
 
+  /** ログイン情報(電話番号など。private/login)。参加するときに、管理者が見られることに同意してもらっている。 */
+  private readonly loginSettings = toSignal(
+    this.auth.session$.pipe(
+      switchMap((session) =>
+        session?.kind === 'member' && session.isAdmin
+          ? this.memberService.getLoginSettingsDoc(session.tenantId, this.memberId)
+          : of(undefined),
+      ),
+    ),
+  );
+
+  /** 電話番号(移行前のデータは会員データにある)。 */
+  phoneOf(member: MemberRow): string {
+    return this.loginSettings()?.phoneNumber ?? member.phoneNumber ?? '—';
+  }
+
+  loginIdOf(): string {
+    return this.loginSettings()?.loginId ?? '—';
+  }
+
+  emailOf(): string {
+    return this.loginSettings()?.email ?? '—';
+  }
+
   /** 表示する値(公開の値と非公開の値)。 */
   valueOf(member: MemberRow, fieldId: string): string | string[] | undefined {
     return this.privateValues()[fieldId] ?? member.profile?.[fieldId];

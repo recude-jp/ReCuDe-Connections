@@ -40,8 +40,11 @@ export function newThread(
   };
 }
 
-/** トーク一覧に出す最新メッセージの要約。 */
-export function summarizeMessage(message: Pick<RoomMessage, 'type' | 'text' | 'status'>): string {
+/**
+ * トーク一覧に出す最新メッセージの要約。暗号化したメッセージは中身を読めないため、種類だけを出す
+ * (端末が lastMessageEnc を復号できれば、本文に差し替えて表示する)。
+ */
+export function summarizeMessage(message: Pick<RoomMessage, 'type' | 'text' | 'status' | 'enc'>): string {
   if (message.status === 'removed') {
     return '（削除されたメッセージ）';
   }
@@ -50,6 +53,9 @@ export function summarizeMessage(message: Pick<RoomMessage, 'type' | 'text' | 's
   }
   if (message.type === 'image') {
     return '写真';
+  }
+  if (message.enc) {
+    return 'メッセージ';
   }
   const text = (message.text ?? '').replace(/\s+/g, ' ').trim();
   return text.length > 60 ? `${text.slice(0, 60)}…` : text;

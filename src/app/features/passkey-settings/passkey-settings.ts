@@ -4,17 +4,20 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../core/services/auth.service';
 import { PasskeyService, PasskeyCredentialSummary } from '../../core/services/passkey.service';
 import { PinService, PinDeviceSummary } from '../../core/services/pin.service';
+import { LoginService } from '../../core/services/login.service';
 import { PinInput } from '../../shared/pin-input/pin-input';
+import { LoginAccountSettings } from './login-account-settings/login-account-settings';
+import { E2eeSettings } from './e2ee-settings/e2ee-settings';
 import { toErrorMessage, toPasskeyErrorMessage } from '../../core/utils/errors';
 
 const PIN_REGEX = /^\d{6}$/;
 
 /**
- * マイページの「ログイン設定」タブ(/mypage/passkeys)。会員(管理者を含む)のパスキー・PINを管理する。
+ * マイページの「ログイン設定」タブ(/mypage/passkeys)。会員(管理者を含む)のログインID・メールアドレスと、パスキー・PINを管理する。
  */
 @Component({
   selector: 'app-passkey-settings',
-  imports: [FormsModule, PinInput],
+  imports: [FormsModule, PinInput, LoginAccountSettings, E2eeSettings],
   templateUrl: './passkey-settings.html',
   styleUrl: './passkey-settings.scss',
 })
@@ -22,6 +25,7 @@ export class PasskeySettings {
   private readonly auth = inject(AuthService);
   private readonly passkeyService = inject(PasskeyService);
   private readonly pinService = inject(PinService);
+  private readonly loginService = inject(LoginService);
 
   readonly session = toSignal(this.auth.session$, { initialValue: undefined });
 
@@ -102,6 +106,12 @@ export class PasskeySettings {
     try {
       const credentialId = await this.passkeyService.register(kind, this.deviceLabel().trim() || undefined);
       this.localCredentialId.set(credentialId);
+      this.passkeyService.markLocalPasskeyHint(kind, true);
+      // ログイン画面で、自分のログインID(・メールアドレス)を入れたときにこのパスキーを試せるようにする。
+      void this.loginService
+        .getSettings()
+        .then((s) => this.passkeyService.rememberPasskeyFor([s.loginId, s.emailLogin ? s.email : null]))
+        .catch(() => undefined);
       this.deviceLabel.set('');
       this.successMessage.set('パスキーを登録しました。');
       await this.load();

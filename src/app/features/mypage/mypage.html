@@ -29,13 +29,24 @@
         </div>
 
         @if (fields().length > 0) {
+          @if (unsetVisibilityFields().length > 0) {
+            <p class="visibility-notice">
+              公開・非公開を選んでいない項目が{{ unsetVisibilityFields().length }}つあります。選ぶまでは、ほかの会員には公開されません。
+              「プロフィールを編集する」から、項目ごとに選んでください。
+            </p>
+          }
           <dl class="profile">
             @for (field of fields(); track field.id) {
+              @let visibility = visibilityOf(field);
               <dt>{{ field.label }}</dt>
               <dd>
                 {{ formatValue(allValues()[field.id], field) || '—' }}
-                @if (field.private) {
-                  <span class="private-note">非公開（本人と事務局だけ）</span>
+                @if (visibility === 'public') {
+                  <span class="visibility-badge public">公開</span>
+                } @else if (visibility === 'private') {
+                  <span class="visibility-badge">非公開（本人と事務局だけ）</span>
+                } @else {
+                  <span class="visibility-badge unset">未設定（公開されません）</span>
                 }
                 @if (field.type === 'derived') {
                   <span class="private-note">自動</span>
@@ -105,7 +116,20 @@
             プロフィール画像が無いときに、丸いアイコンに出す文字です。2文字なら同じ大きさで並べます。空のときは名前の最初と最後の1文字を出します。
           </p>
 
-          <app-profile-form idPrefix="mypage" [fields]="fields()" [options]="options()" [(values)]="draftProfile" />
+          @if (fields().length > 0) {
+            <p class="hint visibility-help">
+              項目ごとに「公開」（同じコミュニティの会員に見せる）か「非公開」（本人と事務局だけ）を選んでください。
+              選ばない項目は公開されません。会員の検索には、公開した項目だけが使われます。
+            </p>
+          }
+          <app-profile-form
+            idPrefix="mypage"
+            [fields]="fields()"
+            [options]="options()"
+            [showVisibility]="true"
+            [(values)]="draftProfile"
+            [(visibility)]="draftVisibility"
+          />
 
           @if (errorMessage()) {
             <p class="error">{{ errorMessage() }}</p>

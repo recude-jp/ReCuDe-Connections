@@ -135,8 +135,13 @@ async function setup(config: SetupConfig): Promise<void> {
     console.log(`既存の会員（${memberId}）に管理者ロールを付けました。`);
   } else {
     memberId = `member-${Date.now()}`;
-    await db.doc(`tenants/${config.tenantId}/members/${memberId}`).set({
+    // 電話番号は会員データには置かず、本人と管理者だけが読める private/login に置く(SECURITY-DEVELOPMENT.md 7章)。
+    await db.doc(`tenants/${config.tenantId}/members/${memberId}/private/login`).set({
       phoneNumber: config.adminPhone,
+      adminAccessConsentAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await db.doc(`tenants/${config.tenantId}/members/${memberId}`).set({
       displayName: config.adminName,
       roles: { recommender: true, admin: true },
       isActive: true,

@@ -1,0 +1,124 @@
+<section class="login-account">
+  <h2>ログインID・メールアドレス</h2>
+
+  @if (settings(); as s) {
+    <div class="row">
+      <div class="row-head">
+        <span class="row-label">ログインID</span>
+        @if (!editingLoginId()) {
+          <button type="button" class="link-button" [disabled]="busy()" (click)="startEditLoginId()">
+            {{ s.loginId ? '変更' : '設定する' }}
+          </button>
+        }
+      </div>
+      @if (editingLoginId()) {
+        <form (ngSubmit)="saveLoginId()">
+          <input
+            name="loginId"
+            type="text"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            maxlength="30"
+            [ngModel]="loginIdInput()"
+            (ngModelChange)="loginIdInput.set($event)"
+          />
+          <p class="hint">
+            半角の英字・数字・「.」「_」「-」で4〜30文字（英字を1文字以上含めてください）。変えると、前のIDではログインできなくなります。
+          </p>
+          <div class="actions">
+            <button type="submit" [disabled]="busy() || !loginIdInput().trim()">保存</button>
+            <button type="button" class="link-button" [disabled]="busy()" (click)="editingLoginId.set(false)">
+              キャンセル
+            </button>
+          </div>
+        </form>
+      } @else {
+        <p class="value">{{ s.loginId || '未設定' }}</p>
+      }
+    </div>
+
+    <div class="row">
+      <div class="row-head">
+        <span class="row-label">メールアドレス <span class="optional">任意</span></span>
+        @if (!editingEmail()) {
+          <button type="button" class="link-button" [disabled]="busy()" (click)="startEditEmail()">
+            {{ s.email ? '変更' : '登録する' }}
+          </button>
+        }
+      </div>
+
+      @if (editingEmail()) {
+        @if (!codeSent()) {
+          <form (ngSubmit)="sendEmailCode()">
+            <input
+              name="email"
+              type="email"
+              autocomplete="email"
+              [ngModel]="emailInput()"
+              (ngModelChange)="emailInput.set($event)"
+            />
+            <p class="hint">入力したアドレスに確認コードを送ります。</p>
+            <div class="actions">
+              <button type="submit" [disabled]="busy() || !emailInput().trim()">確認コードを送信</button>
+              <button type="button" class="link-button" [disabled]="busy()" (click)="cancelEditEmail()">
+                キャンセル
+              </button>
+            </div>
+          </form>
+        } @else {
+          <form (ngSubmit)="confirmEmail()">
+            <p class="hint">{{ emailInput().trim() }} に届いた6桁の確認コードを入力してください。</p>
+            <app-pin-input
+              [value]="emailCode()"
+              [disabled]="busy()"
+              (valueChange)="emailCode.set($event)"
+            />
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="useEmailAsLoginId()"
+                (change)="useEmailAsLoginId.set($any($event.target).checked)"
+              />
+              このメールアドレスをログインIDとしても使う
+            </label>
+            <div class="actions">
+              <button type="submit" [disabled]="busy() || emailCode().length !== 6">登録する</button>
+              <button type="button" class="link-button" [disabled]="busy()" (click)="codeSent.set(false)">
+                送り直す
+              </button>
+              <button type="button" class="link-button" [disabled]="busy()" (click)="cancelEditEmail()">
+                キャンセル
+              </button>
+            </div>
+          </form>
+        }
+      } @else if (s.email) {
+        <p class="value">{{ s.email }}</p>
+        <label class="check">
+          <input
+            type="checkbox"
+            [checked]="s.emailLogin"
+            [disabled]="busy()"
+            (change)="toggleEmailLogin($any($event.target).checked)"
+          />
+          ログインIDとしても使う（ログイン画面でメールアドレスを入力できます）
+        </label>
+        <button type="button" class="link-button danger" [disabled]="busy()" (click)="removeEmail()">
+          メールアドレスを削除
+        </button>
+      } @else {
+        <p class="value muted">未登録（認証コードは電話番号のSMSで受け取ります）</p>
+      }
+    </div>
+  } @else if (!errorMessage()) {
+    <p>読み込み中...</p>
+  }
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+  @if (successMessage()) {
+    <p class="success">{{ successMessage() }}</p>
+  }
+</section>

@@ -61,6 +61,20 @@ service cloud.firestore {
           allow create, delete: if false;
         }
 
+        // 暗号鍵のバックアップ(パスフレーズで暗号化した秘密鍵。SECURITY-DEVELOPMENT.md 6-3)。
+        // 総当たりを防ぐため、本人だけが読み書きできる(管理者も読めない)。
+        match /e2ee/{docId} {
+          allow read: if isSelf(tenantId, memberId);
+          allow create, update: if isSelf(tenantId, memberId)
+            && docId == 'backup'
+            && request.resource.data.keys().hasOnly(['v', 'keyId', 'salt', 'iterations', 'iv', 'ct', 'updatedAt'])
+            && request.resource.data.keyId is string
+            && request.resource.data.ct is string && request.resource.data.ct.size() <= 4000
+            && request.resource.data.iterations is int && request.resource.data.iterations >= 100000
+            && request.resource.data.updatedAt == request.time;
+          allow delete: if false;
+        }
+
         // 非公開のプロフィール(生年月など)。本人と管理者だけが読める。書き込みは Cloud Functions だけ
         // (公開の値・自動計算の結果は会員データの profile に置き、同じテナントの会員が読める)。
         match /private/{docId} {
@@ -89,6 +103,18 @@ service cloud.firestore {
 
       // トークのルーム(1対1・グループ共通)。ルームのメンバー(memberIds)だけが閲覧可。
       // ルームの作成・招待・参加・退出はCloud Functions経由のみ。
+      // 会員の公開鍵(エンドツーエンド暗号化。SECURITY-DEVELOPMENT.md 6-1)。同じテナントの会員が読め、ルームの鍵を包むのに使う。
+      // 書けるのは本人だけ(鍵を作り直したときは上書きする)。
+      match /memberKeys/{memberId} {
+        allow read: if isMember(tenantId);
+        allow create, update: if isSelf(tenantId, memberId)
+          && request.resource.data.keys().hasOnly(['publicKey', 'keyId', 'updatedAt'])
+          && request.resource.data.publicKey is map
+          && request.resource.data.keyId is string && request.resource.data.keyId.size() <= 40
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+
       match /rooms/{roomId} {
         function roomData() {
           return get(/databases/$(database)/documents/tenants/$(tenantId)/rooms/$(roomId)).data;
@@ -111,63 +137,58 @@ service cloud.firestore {
           allow write: if false;
         }
 
+        // ルームの鍵(世代ごと)。世代の鍵は、その世代で最初に使うメンバーの端末が作る(サーバーは鍵を知らない)。
+        // 作れるのはルームの今の世代(roomData().keyEpoch。Cloud Functions だけが進める)だけで、作り直しはできない。
+        match /keys/{epoch} {
+          allow read: if isRoomMember();
+          allow create: if isRoomMember()
+            && epoch == string(roomData().get('keyEpoch', 0))
+            && request.resource.data.keys().hasOnly(['createdBy', 'createdAt'])
+            && request.resource.data.createdBy == request.auth.token.memberId
+            && request.resource.data.createdAt == request.time;
+          allow update, delete: if false;
+
+          // メンバーごとに、その人の公開鍵で包んだルームの鍵。包むのは鍵を持っているメンバーの端末
+          // (加わったばかりの人・鍵を作り直した人には、あとから包んで渡すため上書きできる)。
+          // 包んだ鍵は受け取る人にしか開けないため、ルームのメンバーなら誰でも読める(誰に配り済みかを確かめるため)。
+          match /members/{keyMemberId} {
+            allow read: if isRoomMember();
+            allow create, update: if isRoomMember()
+              && keyMemberId in roomData().memberIds
+              && request.resource.data.keys().hasOnly(['epk', 'iv', 'ct', 'keyId', 'wrappedBy', 'updatedAt'])
+              && request.resource.data.epk is map
+              && request.resource.data.ct is string && request.resource.data.ct.size() <= 200
+              && request.resource.data.keyId is string
+              && request.resource.data.wrappedBy == request.auth.token.memberId
+              && request.resource.data.updatedAt == request.time;
+            allow delete: if false;
+          }
+        }
+
         // メッセージ。低レイテンシのためクライアントから直接作成する(他の書き込みと異なりCloud Functionsを経由しない)。
         // 送信者本人・ルームのメンバーであること、項目と種類をルールで検証する。編集・削除は未対応。
+        // 中身は暗号化してあるため、スタンプを使えるか(コミュニティのスタンプ・マイスタンプ)はルールでは確かめられない
+        // (表示する側は、決まった場所のスタンプの画像しか読まない)。
         match /messages/{messageId} {
-          function isValidText(data) {
-            return data.text is string && data.text.size() > 0 && data.text.size() <= 2000;
-          }
-          // コミュニティのスタンプ(packId が tp- で始まる。管理 A2)。表示中のパック・スタンプで、送る人が使える範囲のものだけ送れる。
-          // ルートのパックはルートコミュニティの正規の会員(ゲスト・連携コミュニティだけのメンバーは除く)、
-          // 連携コミュニティのパックはそのメンバー(カスタムクレーム communityIds)が使える。
-          function canUseCommunityStamp(packId, stampId) {
-            let pack = get(/databases/$(database)/documents/tenants/$(tenantId)/stampPacks/$(packId)).data;
-            return pack.hidden != true
-              && stampId in pack.stamps
-              && pack.stamps[stampId].get('hidden', false) != true
-              && (
-                (pack.scope.type == 'root' && request.auth.token.get('isGuest', false) != true)
-                || (pack.scope.type == 'community'
-                  && pack.scope.communityId in request.auth.token.get('communityIds', []))
-              );
-          }
-          // スタンプはIDだけを保存する(SPEC 5-4)。マイスタンプ(packId: 'custom')は、登録した本人だけが送れる。
-          function isValidStamp(data) {
-            return data.stamp is map
-              && data.stamp.keys().hasOnly(['packId', 'stampId', 'ownerId'])
-              && data.stamp.packId is string && data.stamp.packId.size() <= 40
-              && data.stamp.stampId is string && data.stamp.stampId.size() <= 40
-              && (data.stamp.packId != 'custom' || (
-                data.stamp.ownerId == request.auth.token.memberId
-                && exists(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.token.memberId)/stamps/$(data.stamp.stampId))
-              ))
-              && (!data.stamp.packId.matches('tp-.*') || (
-                !('ownerId' in data.stamp) && canUseCommunityStamp(data.stamp.packId, data.stamp.stampId)
-              ));
-          }
-          // 画像の実体は Storage のこのメッセージ専用のパスに置く(storage.rules でもメンバーだけに制限する)。
-          function isValidImage(data) {
-            let mediaPath = 'tenants/' + tenantId + '/rooms/' + roomId + '/media/' + messageId + '/';
-            return data.media is map
-              && data.media.keys().hasOnly(['path', 'thumbPath', 'contentType', 'width', 'height', 'size'])
-              && data.media.path == mediaPath + 'original.jpg'
-              && data.media.thumbPath == mediaPath + 'thumb.jpg'
-              && data.media.contentType == 'image/jpeg'
-              && data.media.width is int && data.media.height is int
-              && data.media.size is int && data.media.size <= 10 * 1024 * 1024;
+          // 暗号文(enc)。中身(本文・スタンプ・画像の情報)はルームの鍵で暗号化してあり、ルールでは形と大きさだけを確かめる。
+          function isValidEncrypted(data) {
+            return data.enc is map
+              && data.enc.keys().hasOnly(['v', 'epoch', 'iv', 'ct'])
+              && data.enc.v == 1
+              && data.enc.epoch is int
+              && data.enc.iv is string && data.enc.iv.size() <= 24
+              && data.enc.ct is string && data.enc.ct.size() > 0 && data.enc.ct.size() <= 12000;
           }
 
           allow read: if isRoomMember();
+          // 新しいメッセージは暗号化したものだけ(SECURITY-DEVELOPMENT.md 6-2)。暗号化を入れる前の平文のメッセージは、読むだけ残す。
           allow create: if isRoomMember()
-            && request.resource.data.keys().hasOnly(['senderId', 'type', 'text', 'stamp', 'media', 'status', 'createdAt'])
+            && request.resource.data.keys().hasOnly(['senderId', 'type', 'enc', 'status', 'createdAt'])
             && request.resource.data.senderId == request.auth.token.memberId
             && request.resource.data.status == 'ready'
             && request.resource.data.createdAt == request.time
-            && (
-              (request.resource.data.type == 'text' && isValidText(request.resource.data))
-              || (request.resource.data.type == 'stamp' && isValidStamp(request.resource.data))
-              || (request.resource.data.type == 'image' && isValidImage(request.resource.data))
-            );
+            && request.resource.data.type in ['text', 'stamp', 'image']
+            && isValidEncrypted(request.resource.data);
           // リアクション(reactions: 会員ID → 絵文字)。ルームのメンバーが、自分の分だけを付け外しできる(1人1つ)。
           // 許可する絵文字は src/app/core/utils/stamps.ts の REACTIONS と揃える。
           allow update: if isRoomMember()
@@ -201,6 +222,13 @@ service cloud.firestore {
       // 追加・編集・削除と参加者数の集計は Cloud Functions(createCommunity など)だけが行う。
       match /communities/{communityId} {
         allow read: if isMember(tenantId);
+        allow write: if false;
+      }
+
+      // 招待申請(トップページの公開フォームから届く)。読めるのはルートの管理者(事務局)だけ。
+      // 申請・招待の送付・見送りは Cloud Functions(submitInviteRequest・decideInviteRequest)だけが書く。
+      match /inviteRequests/{requestId} {
+        allow read: if isAdmin(tenantId);
         allow write: if false;
       }
 
@@ -244,6 +272,28 @@ service cloud.firestore {
     // 電話番号→テナント/会員の逆引きインデックス。Cloud Functions(Admin SDK)からのみアクセスし、
     // クライアントからの直接読み書きは禁止する。
     match /phoneIndex/{phoneNumber} {
+      allow read, write: if false;
+    }
+
+    // ログインID・メールアドレス→テナント/会員の逆引き、ログインとメール確認の認証コード、送信回数の記録、
+    // 登録されていないIDに見せるダミーの送り先を決める秘密の値。すべて Cloud Functions(Admin SDK)だけが読み書きする。
+    match /loginIdIndex/{loginId} {
+      allow read, write: if false;
+    }
+    match /loginCodes/{codeId} {
+      allow read, write: if false;
+    }
+    match /emailVerifications/{verificationId} {
+      allow read, write: if false;
+    }
+    match /loginRateLimits/{limitId} {
+      allow read, write: if false;
+    }
+    match /systemSecrets/{secretId} {
+      allow read, write: if false;
+    }
+    // 招待申請の接続元ごとの送信回数(IPアドレスのハッシュ)。Cloud Functions だけが読み書きする。
+    match /inviteRequestRateLimits/{limitId} {
       allow read, write: if false;
     }
 

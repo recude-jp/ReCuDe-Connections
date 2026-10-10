@@ -8,6 +8,7 @@ import type { Member, PasskeyCredential, PasskeyIndexEntry, WebauthnChallenge } 
 import { credentialsCollectionPath, resolveOrigin, resolveRpID } from './webauthn';
 import { memberRefFromIndex } from './callerIdentity';
 import { buildMemberClaims } from './memberClaims';
+import { identifierMatchesMember } from './loginAccount';
 
 /**
  * パスキーログインの完了ステップ。認証器の応答を検証し、成功したらFirebase Authの
@@ -16,9 +17,11 @@ import { buildMemberClaims } from './memberClaims';
  * トークン発行前に会員ドキュメントから再設定する。
  */
 export const completePasskeyAuthentication = onCall(async (request) => {
-  const { requestId, credential } = (request.data ?? {}) as {
+  const { requestId, credential, identifier } = (request.data ?? {}) as {
     requestId?: string;
     credential?: AuthenticationResponseJSON;
+    /** ログイン画面で入力したID。あれば、パスキーがそのIDの会員のものかを確かめる。 */
+    identifier?: string;
   };
   if (!requestId || !credential) {
     throw new HttpsError('invalid-argument', 'リクエストが不正です。');
@@ -42,6 +45,10 @@ export const completePasskeyAuthentication = onCall(async (request) => {
   const memberRef = indexEntry ? memberRefFromIndex(indexEntry) : null;
   if (!indexEntry || !memberRef) {
     throw new HttpsError('not-found', 'このパスキーは登録されていません。');
+  }
+
+  if (identifier !== undefined && !(await identifierMatchesMember(identifier, memberRef))) {
+    throw new HttpsError('permission-denied', 'このパスキーは、入力したログインIDのものではありません。');
   }
 
   const credentialRef = db.doc(`${credentialsCollectionPath(memberRef)}/${credential.id}`);

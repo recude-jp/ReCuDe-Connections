@@ -61,9 +61,15 @@ export interface ProfileField {
  * 本人と管理者だけが読める。書き込みは Cloud Functions だけ。
  */
 export interface MemberPrivateProfile {
+  /** すべての項目の値(公開にした項目の値は、会員データの profile にも写す)。 */
   values: ProfileValues;
+  /** 項目ごとの公開・非公開(本人が選ぶ。未設定は非公開。SECURITY-DEVELOPMENT.md 7章)。 */
+  visibility?: Record<string, ProfileVisibility>;
   updatedAt: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
 }
+
+/** プロフィールの項目の公開範囲。public: 同じコミュニティの会員に見せる。private: 本人と管理者だけ。 */
+export type ProfileVisibility = 'public' | 'private';
 
 /** 会員が入力したプロフィールの値(項目ID → 値。tags は配列)。 */
 export type ProfileValues = Record<string, string | string[]>;
@@ -155,7 +161,11 @@ export interface MembershipApplication {
 }
 
 export interface Member {
-  phoneNumber: string;
+  /**
+   * 旧方式: 電話番号(E.164)。同じテナントの会員が読める場所にあったため、private/login の phoneNumber に移した
+   * (SECURITY-DEVELOPMENT.md 7章)。移行前のデータだけが持つ。読むときは getMemberPhone を使う。
+   */
+  phoneNumber?: string;
   displayName: string;
   /** プロフィール画像(Storage のパス。tenants/[tenantId]/members/[memberId]/photo/...)。 */
   photoPath?: string;
@@ -202,6 +212,58 @@ export interface PhoneIndexEntry {
 }
 
 /**
+ * ログインの設定(tenants/[tenantId]/members/[memberId]/private/login)。本人と管理者だけが読める。
+ * 会員データ(members)は同じテナントの会員が読めるため、ログインID・メールアドレス・電話番号はここに置く。
+ */
+export interface MemberLoginSettings {
+  /** ログインID(小文字に揃えたもの)。ゲストの仕組みを入れたころからの会員は未設定のことがある。 */
+  loginId?: string;
+  /** 確認済みのメールアドレス(小文字に揃えたもの)。認証コードの送り先になる。 */
+  email?: string;
+  /** メールアドレスをログインIDの代わりに使えるようにしているか。 */
+  emailLogin?: boolean;
+  /** 電話番号(E.164)。ログイン・認証コードのSMSに使う(会員データから移した)。 */
+  phoneNumber?: string;
+  /** ログイン情報を管理者が見られることに同意した日時(参加するときに同意する)。 */
+  adminAccessConsentAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
+  updatedAt: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
+}
+
+/**
+ * ログインID・メールアドレス → 会員の逆引き(loginIdIndex/[ID])。ログインIDは「@」を含まず、
+ * メールアドレスは必ず含むため、同じコレクションに置いても重ならない。Cloud Functions だけが読み書きする。
+ */
+export interface LoginIdIndexEntry {
+  tenantId: string;
+  memberId: string;
+  kind: 'loginId' | 'email';
+}
+
+/**
+ * ログインの認証コード(loginCodes/[入力したIDのSHA-256])。登録されていないIDでも、送信回数を数えるために作る
+ * (そのときは tenantId・memberId・codeHash を持たない)。
+ */
+export interface LoginCode {
+  tenantId?: string;
+  memberId?: string;
+  channel?: 'email' | 'sms';
+  codeHash?: string;
+  expiresAt?: FirebaseFirestore.Timestamp;
+  failedAttempts: number;
+  /** 直近1時間の送信時刻(送信回数の制限に使う)。 */
+  sentAt: FirebaseFirestore.Timestamp[];
+}
+
+/** メールアドレスの登録の確認コード(emailVerifications/[tenantId]_[memberId])。 */
+export interface EmailVerification {
+  email: string;
+  codeHash: string;
+  expiresAt: FirebaseFirestore.Timestamp;
+  failedAttempts: number;
+  sentAt: FirebaseFirestore.Timestamp[];
+}
+
+/**
  * 招待の状態。invited: 送付済み(まだ参加していない)。joined: ゲストとして参加した。canceled: 取り消した。
  * submitted・approved・rejected は、ゲストの仕組みを入れる前の招待(推薦者が承認する方式)の状態。
  */
@@ -228,6 +290,8 @@ export interface Invite {
   /** 招待先。未設定はルートコミュニティ。 */
   target?: InviteTarget;
   /** 招待リンク(/join?code=...)のコード。inviteCodes/[code] に対応する。 */
+  /** 事務局が招待申請(inviteRequests)から送った招待のとき、その申請のID。 */
+  requestId?: string;
   code?: string;
   status: InviteStatus;
   candidateProfile?: CandidateProfileInput;
@@ -307,6 +371,11 @@ export interface Room {
   /** セキュリティルールでの参加者判定に使う。 */
   memberIds: string[];
   memberCount: number;
+  /**
+   * ルームの鍵の世代(SECURITY-DEVELOPMENT.md 6-1)。グループからメンバーが抜けたときに1つ進め、新しい世代の鍵は
+   * 残ったメンバーの端末が作って配る。未設定は0。
+   */
+  keyEpoch?: number;
   /** groupのみ。グループ管理者は members サブコレクションの role で持つ(複数人可)。 */
   name?: string;
   description?: string;
@@ -422,9 +491,20 @@ export interface MessageMedia {
  * クライアントから直接作成する(firestore.rulesで送信者本人・ルームのメンバーを検証)。
  * stamp が文字列のものは、オリジナルスタンプ導入前の絵文字スタンプ(表示のみ対応)。
  */
+/** メッセージの暗号文(SECURITY-DEVELOPMENT.md 6-2)。サーバーは中身を読めない。 */
+export interface EncryptedPayload {
+  v: number;
+  epoch: number;
+  iv: string;
+  ct: string;
+}
+
 export interface RoomMessage {
   senderId: string;
   type: RoomMessageType;
+  /** 暗号化したメッセージの中身(本文・スタンプ・画像の情報)。暗号化を入れる前のメッセージには無い。 */
+  enc?: EncryptedPayload;
+  /** 暗号化を入れる前のメッセージの中身(平文のまま残す)。 */
   text?: string;
   stamp?: StampRef | string;
   media?: MessageMedia;
@@ -448,6 +528,8 @@ export interface Thread {
   /** directのみ。相手の会員ID。 */
   otherMemberId?: string;
   lastMessageText: string;
+  /** 最新メッセージが暗号化されているとき、その暗号文(サーバーは写すだけ。端末で復号してプレビューに出す)。 */
+  lastMessageEnc?: EncryptedPayload & { messageId: string; senderId: string };
   lastSenderId: string | null;
   lastMessageAt: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue | null;
   /** 並べ替え用。ルームに入った日時、以降は最新メッセージの日時。 */
@@ -528,4 +610,45 @@ export interface PinDeviceIndexEntry {
   kind: 'member' | 'admin'; // 'admin' は旧方式の事務局アカウントの登録(移行後はログインに使えない)
   uid: string;
   memberId?: string;
+}
+
+/** 招待申請の状態。pending: 事務局の確認待ち。invited: 招待を送った。declined: 見送った。 */
+export type InviteRequestStatus = 'pending' | 'invited' | 'declined';
+
+/**
+ * 招待申請(tenants/[tenantId]/inviteRequests/[requestId])。会員の知り合いがいない人が、トップページの公開フォームから送る。
+ * 利用の条件(東京岐阜県人会の会員か、連携している在京同窓会の会員)を事務局が名簿などで確かめてから、招待を送る。
+ * 読めるのはルートの管理者だけ。書き込みは Cloud Functions だけ。
+ */
+export interface InviteRequest {
+  name: string;
+  /** E.164。招待リンクの送り先と、参加するときの電話番号の確認に使う。 */
+  phoneNumber: string;
+  email?: string;
+  hometown: string;
+  highSchool?: string;
+  juniorHighSchool?: string;
+  /** 東京岐阜県人会の会員か(本人の申告)。 */
+  kenjinkaiMember: boolean;
+  /** 在京同窓会の会員か(本人の申告)。 */
+  alumniMember: boolean;
+  /** 加入している在京同窓会(連携コミュニティ)のID。 */
+  alumniCommunityId?: string;
+  /** 連携コミュニティに無い同窓会のとき、その名前。 */
+  alumniOtherName?: string;
+  /** 紹介者(知り合いの会員など)の名前。 */
+  referrer?: string;
+  note?: string;
+  status: InviteRequestStatus;
+  /** 申請のときに、その電話番号がすでに参加していたか・招待が送られていたか(事務局の確認の参考)。 */
+  alreadyJoined: boolean;
+  alreadyInvited: boolean;
+  createdAt: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
+  handledBy?: string;
+  handledAt?: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
+  /** 招待を送ったとき、その招待と招待先(未設定はルート)。 */
+  inviteId?: string;
+  invitedCommunityId?: string;
+  /** 見送ったときの理由(事務局のメモ。申請者には送らない)。 */
+  declineReason?: string;
 }

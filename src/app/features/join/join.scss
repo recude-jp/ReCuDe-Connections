@@ -68,3 +68,35 @@
     margin: 0 0 8px;
   }
 }
+
+.hint {
+  margin: -8px 0 4px;
+  color: #78716c;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.privacy-consent {
+  padding: 12px 14px;
+  margin: 4px 0 8px;
+  border-radius: 8px;
+  background: #f5f5f4;
+  font-size: 0.85rem;
+
+  p {
+    margin: 0 0 8px;
+    color: #57534e;
+    line-height: 1.6;
+  }
+
+  .agreement {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: #1c1917;
+
+    input {
+      margin: 4px 0 0;
+    }
+  }
+}

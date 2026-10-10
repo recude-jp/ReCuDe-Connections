@@ -3,7 +3,15 @@ import { Firestore, collection, collectionData, doc, docData } from '@angular/fi
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Storage, getDownloadURL, ref, uploadBytes } from '@angular/fire/storage';
 import { Observable, map } from 'rxjs';
-import type { Community, Member, MemberPrivateProfile, ProfileValues, Tenant } from '../models/firestore.models';
+import type {
+  Community,
+  Member,
+  MemberLoginSettings,
+  MemberPrivateProfile,
+  ProfileValues,
+  ProfileVisibility,
+  Tenant,
+} from '../models/firestore.models';
 
 /** 会員エリアのルート(member.routes.ts)で提供する(Firestore SDKを初回読み込みに含めないため)。 */
 /** 連携コミュニティ(IDつき)。 */
@@ -37,8 +45,24 @@ export class MemberService {
 
   /** 非公開のプロフィールの値(生年月など)。読めるのは本人と管理者だけ(firestore.rules)。 */
   getPrivateProfile(tenantId: string, memberId: string): Observable<ProfileValues> {
+    return this.getPrivateProfileDoc(tenantId, memberId).pipe(map((data) => data.values));
+  }
+
+  /** private/profile(すべての値と、本人が選んだ公開範囲)。読めるのは本人と管理者だけ。 */
+  getPrivateProfileDoc(
+    tenantId: string,
+    memberId: string,
+  ): Observable<{ values: ProfileValues; visibility: Record<string, ProfileVisibility> }> {
     const ref = doc(this.firestore, `tenants/${tenantId}/members/${memberId}/private/profile`);
-    return (docData(ref) as Observable<MemberPrivateProfile | undefined>).pipe(map((data) => data?.values ?? {}));
+    return (docData(ref) as Observable<MemberPrivateProfile | undefined>).pipe(
+      map((data) => ({ values: data?.values ?? {}, visibility: data?.visibility ?? {} })),
+    );
+  }
+
+  /** private/login(電話番号・ログインID・メールアドレス)。読めるのは本人と管理者だけ。 */
+  getLoginSettingsDoc(tenantId: string, memberId: string): Observable<MemberLoginSettings | undefined> {
+    const ref = doc(this.firestore, `tenants/${tenantId}/members/${memberId}/private/login`);
+    return docData(ref) as Observable<MemberLoginSettings | undefined>;
   }
 
   getMember(tenantId: string, memberId: string): Observable<Member | undefined> {
@@ -56,9 +80,16 @@ export class MemberService {
     profile: ProfileValues,
     photoPath?: string | null,
     avatarText?: string,
+    visibility?: Record<string, ProfileVisibility>,
   ): Promise<void> {
     const fn = httpsCallable<
-      { displayName: string; profile: ProfileValues; photoPath?: string | null; avatarText?: string },
+      {
+        displayName: string;
+        profile: ProfileValues;
+        photoPath?: string | null;
+        avatarText?: string;
+        visibility?: Record<string, ProfileVisibility>;
+      },
       unknown
     >(this.functions, 'updateMyProfile');
     await fn({
@@ -66,6 +97,7 @@ export class MemberService {
       profile,
       ...(photoPath !== undefined ? { photoPath } : {}),
       ...(avatarText !== undefined ? { avatarText } : {}),
+      ...(visibility ? { visibility } : {}),
     });
   }
 
@@ -90,11 +122,15 @@ export class MemberService {
   }
 
   /** ゲストが正規の会員を申請する(テナントのプロフィール項目を入力し、会員条件に同意して)。審査は管理者が行う。 */
-  async applyForMembership(profile: ProfileValues, agreedToTerms: boolean): Promise<void> {
-    const fn = httpsCallable<{ profile: ProfileValues; agreedToTerms: boolean }, unknown>(
-      this.functions,
-      'applyForMembership',
-    );
-    await fn({ profile, agreedToTerms });
+  async applyForMembership(
+    profile: ProfileValues,
+    agreedToTerms: boolean,
+    visibility: Record<string, ProfileVisibility>,
+  ): Promise<void> {
+    const fn = httpsCallable<
+      { profile: ProfileValues; agreedToTerms: boolean; visibility: Record<string, ProfileVisibility> },
+      unknown
+    >(this.functions, 'applyForMembership');
+    await fn({ profile, agreedToTerms, visibility });
   }
 }

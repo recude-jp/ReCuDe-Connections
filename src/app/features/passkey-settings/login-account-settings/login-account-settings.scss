@@ -1,0 +1,121 @@
+$accent: #0f766e;
+
+.login-account {
+  margin-bottom: 32px;
+
+  h2 {
+    margin-top: 0;
+  }
+}
+
+.row {
+  padding: 12px 0;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.row-label {
+  font-weight: 600;
+}
+
+.optional {
+  margin-left: 4px;
+  color: #78716c;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.value {
+  margin: 6px 0 0;
+  word-break: break-all;
+
+  &.muted {
+    color: #78716c;
+    font-size: 0.9rem;
+  }
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+input[type='text'],
+input[type='email'],
+input[type='password'] {
+  padding: 10px 12px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.hint {
+  margin: 0;
+  color: #78716c;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  button[type='submit'] {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    background: $accent;
+    color: #fff;
+    font-size: 0.9rem;
+    cursor: pointer;
+
+    &:disabled {
+      background: #a8a29e;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.link-button {
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  color: $accent;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:disabled {
+    color: #a8a29e;
+    cursor: not-allowed;
+  }
+
+  &.danger {
+    color: #b91c1c;
+  }
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.success {
+  color: #166534;
+}

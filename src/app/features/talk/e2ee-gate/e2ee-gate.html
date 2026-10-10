@@ -1,0 +1,79 @@
+<section class="gate">
+  <span class="icon"><fa-icon [icon]="lockIcon" /></span>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="muted">暗号鍵を確認しています...</p>
+    }
+    @case ('error') {
+      <h2>暗号鍵を確認できませんでした</h2>
+      <p class="muted">通信の状態を確かめて、ページを読み込み直してください。</p>
+    }
+    @case ('needs-restore') {
+      @if (!resetting()) {
+        <h2>この端末で、トークの暗号鍵を戻します</h2>
+        <p>
+          トークのメッセージは暗号化されていて、読めるのはあなたの端末だけです。
+          この端末で読むには、暗号鍵を作ったときに決めたパスフレーズを入力してください。
+        </p>
+        <form (ngSubmit)="restore()">
+          <label for="restorePassphrase">パスフレーズ</label>
+          <input id="restorePassphrase" name="restorePassphrase" type="password" autocomplete="current-password"
+            [ngModel]="passphrase()" (ngModelChange)="passphrase.set($event)" />
+          <button type="submit" [disabled]="busy() || !passphrase()">
+            {{ busy() ? '確認しています...' : '暗号鍵を戻す' }}
+          </button>
+        </form>
+        <button type="button" class="link" [disabled]="busy()" (click)="startReset()">パスフレーズを忘れた</button>
+      }
+    }
+  }
+
+  @if (state() === 'needs-setup' || (state() === 'needs-restore' && resetting())) {
+    @if (resetting()) {
+      <h2>暗号鍵を作り直します</h2>
+      <p class="warning">
+        作り直すと、<strong>これまでのトークのメッセージは読めなくなります</strong>（どの端末でも戻せません）。
+        ほかのメンバーがトークを開くと新しい鍵が届き、その後のメッセージは読めるようになります。
+      </p>
+    } @else {
+      <h2>トークの暗号化を始めます</h2>
+      <p>
+        トークのメッセージは、あなたの端末で暗号化してから届けます。読めるのはトークの参加者だけで、
+        運営者や事務局も読めません。
+      </p>
+      <p>
+        そのための暗号鍵を、パスフレーズで守って保存します。機種変更したときや別の端末で使うときに、
+        このパスフレーズで過去のメッセージも読めるようになります。
+      </p>
+    }
+    <form (ngSubmit)="create()">
+      <label for="newPassphrase">パスフレーズ（{{ minLength }}文字以上）</label>
+      <input id="newPassphrase" name="newPassphrase" type="password" autocomplete="new-password"
+        [ngModel]="passphrase()" (ngModelChange)="passphrase.set($event)" />
+      <label for="confirmPassphrase">もう一度入力</label>
+      <input id="confirmPassphrase" name="confirmPassphrase" type="password" autocomplete="new-password"
+        [ngModel]="confirmation()" (ngModelChange)="confirmation.set($event)" />
+      @if (confirmation() && passphrase() !== confirmation()) {
+        <p class="hint error">パスフレーズが一致しません。</p>
+      }
+      <p class="hint">
+        ほかのサービスと同じものは避け、覚えやすい言葉をいくつか組み合わせてください（例: 「長良川で鮎を3匹釣った」）。
+      </p>
+      <label class="check">
+        <input type="checkbox" [checked]="understood()" (change)="understood.set($any($event.target).checked)" />
+        パスフレーズを忘れると、過去のメッセージは誰にも戻せないことを理解しました（運営者も戻せません）
+      </label>
+      <button type="submit" [disabled]="!canCreate()">
+        {{ busy() ? '暗号鍵を作っています...' : resetting() ? '暗号鍵を作り直す' : '暗号化を始める' }}
+      </button>
+    </form>
+    @if (resetting()) {
+      <button type="button" class="link" [disabled]="busy()" (click)="cancelReset()">パスフレーズの入力に戻る</button>
+    }
+  }
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+</section>

@@ -374,7 +374,7 @@ classDiagram
 | `tenants/[tenantId]/rooms/[roomId]/members/[memberId]` | ルームのメンバー。役割（`admin`＝グループ管理者／`member`）と、誰の招待で参加したか（`invitedBy`）。グループ管理者は複数人でき、常に1人以上いる（テナントの管理者 `roles.admin` とは別物） |
 | `tenants/[tenantId]/rooms/[roomId]/invitations/[inviteeId]` | グループへの招待（招待される会員ごとに1件） |
 | `tenants/[tenantId]/rooms/[roomId]/messages/[messageId]` | メッセージ（テキスト・スタンプ・画像）。クライアントから直接作成する（ルールで送信者本人・メンバー・項目を検証）。リアクション（`reactions`）は、メンバーが自分の分だけ付け外しできる |
-| `tenants/[tenantId]/members/[memberId]/private/profile` | 非公開のプロフィール項目（`private: true`。例: 生年月 `YYYY-MM`）の値。本人と管理者だけが読める。書き込みは Cloud Functions のみ（`updateMyProfile`・`applyForMembership`・`decideMembership`） |
+| `tenants/[tenantId]/members/[memberId]/private/profile` | プロフィールのすべての項目の値（`values`）と、本人が選んだ項目ごとの公開範囲（`visibility`。未設定は非公開）。公開にした項目の値だけを会員データの `profile` に写す。本人と管理者だけが読める。書き込みは Cloud Functions のみ（`updateMyProfile`・`applyForMembership`・`decideMembership`） |
 | `tenants/[tenantId]/members/[memberId]/threads/[roomId]` | 会員ごとのトーク一覧（最新メッセージ・未読数）。メッセージ作成時に `onRoomMessageCreated` が全メンバー分を更新する。本人は既読にする更新だけできる |
 | `tenants/[tenantId]/members/[memberId]/stamps/[stampId]` | マイスタンプ（名前・画像の形式）。本人だけが読み書きできる。画像は Storage の同じ名前のパス |
 | `tenants/[tenantId]/members/[memberId]/groupInvitations/[roomId]` | 自分に届いているグループ招待（トーク一覧に出す）。Cloud Functionsのみが書き込む |
@@ -383,6 +383,18 @@ classDiagram
 | `tenants/[tenantId]/members/[memberId]/pinDevices/[deviceId]` | 会員が登録したPINログイン用端末 |
 | `tenants/[tenantId]/admins/[adminUid]/pinDevices/[deviceId]` | **廃止**。旧方式の事務局アカウントが登録したPINログイン用端末（ログインには使えない） |
 | `phoneIndex/[phoneNumber]` | 電話番号→(テナント, 会員)の逆引き。ログイン時の`resolveMemberSession`が参照 |
+| `tenants/[tenantId]/members/[memberId]/private/login` | ログインの設定（`loginId`・確認済みの`email`・`emailLogin`・`phoneNumber`・`adminAccessConsentAt`＝ログイン情報を管理者が見られることに同意した日時）。本人と管理者だけが読める。書き込みは Cloud Functions のみ。電話番号は会員データ（`members`）から移した（SECURITY-DEVELOPMENT.md 7章） |
+| `tenants/[tenantId]/members/[memberId]/e2ee/backup` | パスフレーズで暗号化した、会員の暗号鍵（秘密鍵）のバックアップ。本人だけが読み書きできる（管理者も読めない） |
+| `tenants/[tenantId]/memberKeys/[memberId]` | 会員の公開鍵（`publicKey`・`keyId`）。同じテナントの会員が読める。書けるのは本人だけ |
+| `tenants/[tenantId]/rooms/[roomId]/keys/[世代]` | ルームの鍵の世代（`createdBy`）。その世代で最初に使うメンバーの端末が作る。世代はルームの `keyEpoch`（グループからメンバーが抜けると Cloud Functions が進める） |
+| `tenants/[tenantId]/rooms/[roomId]/keys/[世代]/members/[memberId]` | そのメンバーの公開鍵で包んだルームの鍵（`epk`・`iv`・`ct`・`keyId`・`wrappedBy`）。ルームのメンバーが読み書きできる（開けるのは受け取る本人だけ） |
+| `loginIdIndex/[ID]` | ログインID・メールアドレス（`emailLogin`のときだけ）→(テナント, 会員)の逆引き（`kind: 'loginId' \| 'email'`）。ログインの`startLogin`・`sendLoginCode`が参照。クライアントからは読み書き不可 |
+| `loginCodes/[SHA-256]` | ログインの認証コード（ハッシュ）・有効期限・失敗回数・送信時刻。IDは「種類:入力したID」のSHA-256。登録されていないIDでも送信回数を数えるために作る。クライアントからは読み書き不可 |
+| `emailVerifications/[tenantId]_[memberId]` | メールアドレスの登録の確認コード。クライアントからは読み書き不可 |
+| `loginRateLimits/[SHA-256]` | 接続元（IPアドレスのハッシュ）ごとの認証コードの送信時刻。クライアントからは読み書き不可 |
+| `systemSecrets/login` | 登録されていないIDに見せるダミーの送り先を決める秘密の値（初回に自動で作る）。クライアントからは読み書き不可 |
+| `tenants/[tenantId]/inviteRequests/[requestId]` | 招待申請（公開フォーム `/request` から届く。氏名・電話番号・出身地・出身校・県人会／在京同窓会の会員かの申告・紹介者・状態 `pending`/`invited`/`declined`）。ルートの管理者だけが読める。書き込みは Cloud Functions のみ（`submitInviteRequest`・`decideInviteRequest`） |
+| `inviteRequestRateLimits/[SHA-256]` | 招待申請の接続元（IPアドレスのハッシュ）ごとの送信時刻。クライアントからは読み書き不可 |
 | `inviteCodes/[code]` | 招待リンク（`/join?code=…`）のコード → (テナント, 招待した会員, 種類 qr/invite, 招待ID, 有効か)。連携コミュニティへの招待は `communityId` を持つ。QRコードは会員・招待先ごとに1つで作り直すまで有効、招待の送付は1回だけ有効。Cloud Functions 専用（ルールで読み書きとも禁止） |
 | `inviteIndex/[phoneNumber]` | 電話番号→(テナント, 招待)の逆引き。候補者登録時の`getInviteStatus`/`submitCandidateProfile`が参照 |
 | `passkeyIndex/[credentialId]` | credentialId→(テナント, 種別, uid, 会員ID)の逆引き。usernameless認証時に`completePasskeyAuthentication`が参照 |

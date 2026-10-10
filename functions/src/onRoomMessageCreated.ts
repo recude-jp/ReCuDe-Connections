@@ -8,7 +8,8 @@ import { roomPath, summarizeMessage, threadPath } from './rooms';
 const ROOM_LAST_MESSAGE_UPDATE_INTERVAL_MS = 60 * 1000;
 
 /**
- * ルームにメッセージが作られたら、メンバー全員のトーク一覧(threads)に最新メッセージを反映し、
+ * ルームにメッセージが作られたら、メンバー全員のトーク一覧(threads)に最新メッセージを反映し(暗号化したメッセージは
+ * 暗号文を写すだけで、中身は読まない)、
  * 送信者以外の未読数を1増やす(SPEC 5-7)。ルームの lastMessageAt は間引いて更新する。
  *
  * トリガーは再実行されることがあるため、メッセージの threadsUpdated で反映済みかを判定し、
@@ -49,6 +50,10 @@ export const onRoomMessageCreated = onDocumentCreated(
           db.doc(threadPath(tenantId, memberId, roomId)),
           {
             lastMessageText: summary,
+            // 暗号文は中身を読まずに写す(端末が復号してプレビューに出す)。平文のメッセージなら消す。
+            lastMessageEnc: message.enc
+              ? { ...message.enc, messageId: messageRef.id, senderId: message.senderId }
+              : FieldValue.delete(),
             lastSenderId: message.senderId,
             lastMessageAt: createdAt,
             lastActivityAt: createdAt,

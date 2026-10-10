@@ -3,11 +3,12 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Firestore, collection, collectionData, doc, docData } from '@angular/fire/firestore';
 import { Storage, getDownloadURL, ref, uploadBytes } from '@angular/fire/storage';
 import { Observable, map } from 'rxjs';
-import type { CommunityScope, Member, MembershipTermsFormat, ProfileField, StampPackScope } from '../models/firestore.models';
+import type { CommunityScope, InviteRequest, Member, MembershipTermsFormat, ProfileField, StampPackScope } from '../models/firestore.models';
 import type { PreparedStamp } from '../utils/image';
 import { communityStampImagePath } from './community-stamp.service';
 
 export type MemberRow = Member & { id: string };
+export type InviteRequestRow = InviteRequest & { id: string };
 
 export interface CommunityInput {
   name: string;
@@ -33,6 +34,24 @@ export class AdminService {
   listMembers(tenantId: string): Observable<MemberRow[]> {
     const ref = collection(this.firestore, `tenants/${tenantId}/members`);
     return collectionData(ref, { idField: 'id' }) as Observable<MemberRow[]>;
+  }
+
+  /** 招待申請(ルートの管理者だけが読める)。 */
+  listInviteRequests(tenantId: string): Observable<InviteRequestRow[]> {
+    const ref = collection(this.firestore, `tenants/${tenantId}/inviteRequests`);
+    return collectionData(ref, { idField: 'id' }) as Observable<InviteRequestRow[]>;
+  }
+
+  /** 招待申請に応える(招待を送る・見送る)。communityId を省くとルートへの招待。 */
+  async decideInviteRequest(input: {
+    requestId: string;
+    decision: 'invite' | 'decline';
+    communityId?: string;
+    channel?: 'sms' | 'email';
+    declineReason?: string;
+  }): Promise<void> {
+    const fn = httpsCallable<typeof input, { status: string }>(this.functions, 'decideInviteRequest');
+    await fn(input);
   }
 
   getMember(tenantId: string, memberId: string): Observable<MemberRow | undefined> {

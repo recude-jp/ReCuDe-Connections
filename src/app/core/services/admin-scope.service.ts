@@ -30,6 +30,7 @@ export interface AdminTab {
 export const ADMIN_TABS: AdminTab[] = [
   { path: 'members', label: '会員一覧' },
   { path: 'applications', label: '会員申請' },
+  { path: 'invite-requests', label: '招待申請', rootOnly: true },
   { path: 'profile-fields', label: 'プロフィール項目' },
   { path: 'membership-terms', label: '会員条件' },
   { path: 'communities', label: '連携コミュニティ', rootOnly: true },

@@ -1,0 +1,46 @@
+<section class="login-account">
+  <h2>トークの暗号化</h2>
+  <div class="row">
+    <div class="row-head">
+      <span class="row-label">暗号鍵のパスフレーズ</span>
+      @if (state() === 'ready' && !editing()) {
+        <button type="button" class="link-button" (click)="start()">変更</button>
+      }
+    </div>
+    @switch (state()) {
+      @case ('ready') {
+        <p class="value muted">
+          トークのメッセージは、この端末で暗号化・復号しています。別の端末で使うときは、パスフレーズで暗号鍵を戻します。
+        </p>
+      }
+      @case ('loading') {
+        <p class="value muted">確認しています...</p>
+      }
+      @default {
+        <p class="value muted">
+          この端末では、まだ暗号鍵の準備ができていません。<a routerLink="/talk">トーク</a>を開くと準備できます。
+        </p>
+      }
+    }
+    @if (editing()) {
+      <form (ngSubmit)="save()">
+        <input name="current" type="password" autocomplete="current-password" placeholder="今のパスフレーズ"
+          [ngModel]="current()" (ngModelChange)="current.set($event)" />
+        <input name="next" type="password" autocomplete="new-password" [placeholder]="'新しいパスフレーズ（' + minLength + '文字以上）'"
+          [ngModel]="next()" (ngModelChange)="next.set($event)" />
+        <input name="confirmation" type="password" autocomplete="new-password" placeholder="新しいパスフレーズをもう一度"
+          [ngModel]="confirmation()" (ngModelChange)="confirmation.set($event)" />
+        <div class="actions">
+          <button type="submit" [disabled]="!canSave()">{{ busy() ? '変えています...' : '変える' }}</button>
+          <button type="button" class="link-button" [disabled]="busy()" (click)="editing.set(false)">キャンセル</button>
+        </div>
+      </form>
+    }
+  </div>
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+  @if (successMessage()) {
+    <p class="success">{{ successMessage() }}</p>
+  }
+</section>

@@ -1,0 +1,292 @@
+<div class="landing">
+  <header class="topbar">
+    <a routerLink="/about" class="brand">
+      @if (logoUrl()) {
+        <img [src]="logoUrl()" alt="" class="brand-logo" />
+      }
+      <span>{{ serviceName() }}</span>
+    </a>
+    @if (loggedIn()) {
+      <a routerLink="/talk" class="topbar-button">トークを開く</a>
+    } @else {
+      <a routerLink="/login" class="topbar-button">ログイン</a>
+    }
+  </header>
+
+  <!-- ファーストビュー -->
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">{{ organization() }}の会員ネットワーク</p>
+      <h1>
+        ふるさと岐阜が、<br />
+        東京での<em>本当のつながり</em>を<br class="sp" />つくる。
+      </h1>
+      <p class="lead">
+        {{ serviceName() }}は、会員の紹介でしか入れない、岐阜にゆかりのある人だけのコミュニティです。
+        知らない誰かとつながるSNSではなく、信頼の輪の中で、一生ものの仲間と人脈を。
+      </p>
+      <div class="hero-actions">
+        @if (loggedIn()) {
+          <a routerLink="/talk" class="button primary">トークを開く</a>
+        } @else {
+          <a routerLink="/login" class="button primary">会員の方はログイン</a>
+        }
+        <button type="button" class="button ghost" (click)="scrollTo('join')">はじめて参加する方へ</button>
+      </div>
+    </div>
+
+    <!-- 人と人がつながる様子と、岐阜の山と清流をモチーフにした図 -->
+    <svg class="hero-art" viewBox="0 0 400 300" aria-hidden="true">
+      <path class="mountain far" d="M0 220 L70 150 L120 190 L190 110 L260 180 L310 140 L400 210 L400 300 L0 300 Z" />
+      <path class="mountain near" d="M0 250 L90 190 L150 230 L230 170 L300 225 L360 195 L400 220 L400 300 L0 300 Z" />
+      <path class="river" d="M-10 285 C 80 255, 140 290, 220 265 S 340 250, 410 270" />
+      <path class="river thin" d="M-10 296 C 90 275, 170 300, 250 282 S 350 270, 410 288" />
+      <g class="links">
+        <line x1="90" y1="70" x2="180" y2="40" />
+        <line x1="180" y1="40" x2="270" y2="80" />
+        <line x1="90" y1="70" x2="150" y2="120" />
+        <line x1="150" y1="120" x2="270" y2="80" />
+        <line x1="270" y1="80" x2="330" y2="40" />
+        <line x1="150" y1="120" x2="230" y2="140" />
+        <line x1="230" y1="140" x2="270" y2="80" />
+      </g>
+      <g class="nodes">
+        <circle cx="90" cy="70" r="11" />
+        <circle cx="180" cy="40" r="14" class="accent" />
+        <circle cx="270" cy="80" r="12" />
+        <circle cx="150" cy="120" r="10" />
+        <circle cx="330" cy="40" r="9" />
+        <circle cx="230" cy="140" r="9" class="accent" />
+      </g>
+    </svg>
+  </section>
+
+  <!-- コンセプト: 不特定多数のSNSとの違い -->
+  <section class="concept">
+    <h2>つながりの「数」より、<br class="sp" />「信頼」を大切に。</h2>
+    <p class="section-lead">
+      フォロワーの数や、知らない人からのメッセージに疲れていませんか。
+      {{ serviceName() }}は、最初から「信頼できる人」だけが集まる場所です。
+    </p>
+    <div class="compare">
+      <div class="compare-col other">
+        <h3>ふつうのSNS</h3>
+        <ul>
+          <li>誰でも登録できる</li>
+          <li>相手がどんな人か分からない</li>
+          <li>つながりが広く、浅くなりがち</li>
+        </ul>
+      </div>
+      <div class="compare-col ours">
+        <h3>{{ serviceName() }}</h3>
+        <ul>
+          <li>会員からの招待（紹介）でだけ参加できる</li>
+          <li>同じ地元・同じ高校など、共通点が見える</li>
+          <li>正規の会員は、事務局の審査を経た人だけ</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 世代ごとの価値 -->
+  <section class="generations">
+    <h2>あなたの今に合った、つながり方を。</h2>
+    <div class="generation-cards">
+      <article class="generation-card young">
+        <p class="age">20代・30代の方へ</p>
+        <h3>上京しても、ひとりじゃない。</h3>
+        <p>
+          同じ高校の先輩、同じ町で育った同世代。東京で出会えるはずのなかった「地元の仲間」と、
+          紹介でつながる安心感の中で気軽に話せます。仕事の相談も、休日の遊び仲間も、ここから。
+        </p>
+        <ul>
+          <li>出身地・高校・部活動の共通点で探せる</li>
+          <li>同窓会の仲間とも、そのままつながれる</li>
+          <li>知らない人に突然声をかけられる心配がない</li>
+        </ul>
+      </article>
+      <article class="generation-card senior">
+        <p class="age">30代・40代の方へ</p>
+        <h3>人生を支える人脈を、ふるさとの縁から。</h3>
+        <p>
+          業界や会社の枠を越えて、岐阜という共通の原点を持つ人どうしだからこそ、話が早く、信頼が続く。
+          キャリアの節目に頼れる先輩、一緒に何かを始められる仲間、応援したい後輩と出会えます。
+        </p>
+        <ul>
+          <li>県人会の幅広い世代・業界の会員とつながれる</li>
+          <li>テーマごとのグループで、継続的な関係を育てられる</li>
+          <li>紹介でつながった、身元の確かな人脈</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <!-- できること -->
+  <section class="features">
+    <h2>できること</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <span class="feature-icon"><fa-icon [icon]="icons.search" /></span>
+        <h3>共通点で探す</h3>
+        <p>出身地・出身高校・部活動・趣味など、岐阜ならではの共通点から会員を探して、つながりを申し込めます。</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon"><fa-icon [icon]="icons.talk" /></span>
+        <h3>トーク</h3>
+        <p>1対1でもグループでも。写真・動画、オリジナルスタンプで、気軽にやりとりできます。</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon"><fa-icon [icon]="icons.group" /></span>
+        <h3>グループ</h3>
+        <p>釣り・スキー・同郷の集まりなど、気の合う仲間でグループをつくり、仲間を招いて輪を広げられます。</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon"><fa-icon [icon]="icons.school" /></span>
+        <h3>同窓会との連携</h3>
+        <p>岐阜県内の高校の在京同窓会と連携。同窓会の仲間とも、県人会の会員とも、ひとつのアプリでつながれます。</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon"><fa-icon [icon]="icons.events" /></span>
+        <h3>リアルイベント <span class="soon">準備中</span></h3>
+        <p>オンラインで出会った仲間と、実際に会える場へ。会員が参加できるイベントの機能を準備しています。</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon"><fa-icon [icon]="icons.trust" /></span>
+        <h3>安心のしくみ</h3>
+        <p>メッセージは暗号化され、トークの参加者だけが読めます。電話番号での本人確認と、パスキーでの安全なログイン。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 秘匿性: メッセージの暗号化と、個人情報の扱い -->
+  <section class="privacy" id="privacy">
+    <div class="privacy-inner">
+      <p class="privacy-eyebrow"><fa-icon [icon]="icons.lock" /> プライバシーを守る設計</p>
+      <h2>あなたの会話も個人情報も、<br class="sp" />あなたのものです。</h2>
+      <p class="section-lead">
+        信頼できるつながりは、安心して話せる場所から。{{ serviceName() }}は、
+        会話と個人情報を「仕組みとして」守ります。
+      </p>
+      <div class="privacy-grid">
+        <article class="privacy-card">
+          <span class="privacy-icon"><fa-icon [icon]="icons.lock" /></span>
+          <h3>メッセージは暗号化。<br />読めるのはトークの参加者だけ。</h3>
+          <p>
+            メッセージや写真は、送る人の端末で暗号化してから届けます。読み解く鍵を持つのはトークの参加者の端末だけ。
+            運営者や事務局、サービスの管理者であっても、会話の中身を読むことはできません。
+          </p>
+        </article>
+        <article class="privacy-card">
+          <span class="privacy-icon"><fa-icon [icon]="icons.userShield" /></span>
+          <h3>個人情報は、<br />あなたの同意なしに公開しません。</h3>
+          <p>
+            電話番号やメールアドレスは、ほかの会員には表示されません。プロフィールの項目ごとに、誰に見せるかをあなたが選べます。
+            同意なく、ほかの会員や外部に公開されることはありません。
+          </p>
+        </article>
+        <article class="privacy-card">
+          <span class="privacy-icon"><fa-icon [icon]="icons.trust" /></span>
+          <h3>閉じた信頼の輪の中だけで。</h3>
+          <p>
+            招待と事務局の確認を経た人だけが参加できるコミュニティです。プロフィールが検索エンジンやインターネット上に
+            公開されることはありません。
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 参加の流れ -->
+  <section class="steps" id="join">
+    <h2>参加の流れ</h2>
+    <p class="section-lead">{{ serviceName() }}は紹介制です。会員から招待を受けた方が参加できます。</p>
+    <ol class="step-list">
+      <li>
+        <span class="step-icon"><fa-icon [icon]="icons.invite" /></span>
+        <div>
+          <h3>招待を受け取る</h3>
+          <p>会員から届いた招待リンク（SMS・メール）を開くか、会員のQRコードを読み取ります。</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-icon"><fa-icon [icon]="icons.guest" /></span>
+        <div>
+          <h3>ゲストとして参加</h3>
+          <p>電話番号で確認し、お名前とログインIDを決めるだけ。招待してくれた方と、すぐにトークができます。</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-icon"><fa-icon [icon]="icons.member" /></span>
+        <div>
+          <h3>正規の会員へ</h3>
+          <p>マイページの「会員登録」から申請し、事務局の審査を経て正規の会員に。すべての機能が使えるようになります。</p>
+        </div>
+      </li>
+    </ol>
+    <div class="request-cta">
+      <p>
+        お知り合いに会員がいない方も、{{ organization() }}または連携している在京同窓会の会員の方は、
+        招待を申請できます。事務局が確認して、招待をお送りします。
+      </p>
+      <a routerLink="/request" class="button ghost">招待を申請する</a>
+    </div>
+  </section>
+
+  <!-- よくある質問 -->
+  <section class="faq">
+    <h2>よくある質問</h2>
+    <details>
+      <summary>招待がなくても参加できますか？</summary>
+      <p>
+        信頼できるつながりを守るため、会員からの招待（紹介）で参加していただく仕組みです。
+        お知り合いに会員がいない方は、<a routerLink="/request">招待の申請</a>をしてください。
+        {{ organization() }}または連携している在京同窓会の会員であることを事務局が確認して、招待をお送りします。
+      </p>
+    </details>
+    <details>
+      <summary>ゲストと正規の会員は何が違いますか？</summary>
+      <p>
+        ゲストは、招待してくれた方とのトークや会員の閲覧ができます。正規の会員になると、
+        つながりの申し込み・グループへの参加・仲間の招待など、すべての機能を使えます。
+      </p>
+    </details>
+    <details>
+      <summary>自分のプロフィールは誰に見えますか？</summary>
+      <p>
+        見せる範囲は、項目ごとにあなたが選べます。電話番号・メールアドレスは、ほかの会員には表示されません。
+        あなたの同意なく公開されることはなく、インターネット上に公開されることもありません。
+      </p>
+    </details>
+    <details>
+      <summary>運営者や管理者は、メッセージを読めますか？</summary>
+      <p>
+        読めません。メッセージは送る人の端末で暗号化され、読み解く鍵はトークの参加者の端末にしかありません。
+        運営者・事務局・サービスの管理者を含め、参加者以外は内容を読めない仕組みです。
+      </p>
+    </details>
+    <details>
+      <summary>スマートフォンで使えますか？</summary>
+      <p>
+        はい。ブラウザで開くだけで使え、ホーム画面に追加するとアプリのように使えます。パソコンからも利用できます。
+      </p>
+    </details>
+  </section>
+
+  <!-- 最後の呼びかけ -->
+  <section class="closing">
+    <h2>ふるさとの縁を、<br class="sp" />これからの力に。</h2>
+    <p>{{ serviceName() }}で、信頼できる仲間とつながりましょう。</p>
+    <div class="hero-actions center">
+      @if (loggedIn()) {
+        <a routerLink="/talk" class="button primary">トークを開く</a>
+      } @else {
+        <a routerLink="/login" class="button primary">会員の方はログイン</a>
+      }
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>{{ serviceName() }} ／ {{ organization() }}</p>
+    <p class="powered">Powered by ReCuDe Connections</p>
+  </footer>
+</div>

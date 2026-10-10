@@ -11,6 +11,7 @@ import { MemberSearchService } from './core/services/member-search.service';
 import { MyStampService } from './core/services/my-stamp.service';
 import { CommunityStampService } from './core/services/community-stamp.service';
 import { NotificationBadgeService } from './core/services/notification-badge.service';
+import { E2eeService } from './core/services/e2ee.service';
 import { environment } from '../environments/environment';
 
 /**
@@ -45,6 +46,7 @@ export const MEMBER_ROUTES: Routes = [
       MyStampService,
       CommunityStampService,
       NotificationBadgeService,
+      E2eeService,
     ],
     loadComponent: () => import('./shared/member-layout/member-layout').then((m) => m.MemberLayout),
     children: [

@@ -50,6 +50,10 @@ export class Join implements AfterViewInit {
   readonly phoneNumber = signal('');
   readonly otpCode = signal('');
   readonly displayName = signal('');
+  /** 新しく参加する人が決めるログインID(次回からのログインに使う)。 */
+  readonly loginId = signal('');
+  /** ログイン情報などを事務局(管理者)が見られることへの同意(新しく参加する人だけ)。 */
+  readonly agreedAdminAccess = signal(false);
   /** 連携コミュニティの参加の条件に同意したか。 */
   readonly agreed = signal(false);
   readonly loading = signal(false);
@@ -135,14 +139,22 @@ export class Join implements AfterViewInit {
 
   async join(): Promise<void> {
     const name = this.displayName().trim();
-    // すでにアカウントがある人は、名前を入れない(登録済みの名前のまま)。
-    if ((!name && this.step() !== 'confirm') || this.needsAgreement()) {
+    const isNew = this.step() !== 'confirm';
+    const loginId = this.loginId().trim();
+    // すでにアカウントがある人は、名前・ログインIDを入れない(登録済みのまま)。
+    if ((isNew && (!name || !loginId || !this.agreedAdminAccess())) || this.needsAgreement()) {
       return;
     }
     this.errorMessage.set('');
     this.loading.set(true);
     try {
-      const result = await this.inviteService.joinAsGuest(this.code, name, this.agreed());
+      const result = await this.inviteService.joinAsGuest(
+        this.code,
+        name,
+        this.agreed(),
+        isNew ? loginId : undefined,
+        isNew ? this.agreedAdminAccess() : undefined,
+      );
       // ゲスト(または既に参加している人)としてのログイン状態にして、トークへ。
       await this.auth.resolveMemberSession();
       if (result.pendingApproval) {

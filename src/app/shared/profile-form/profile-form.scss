@@ -121,3 +121,42 @@
   font-size: 0.75rem;
   color: #78716c;
 }
+
+// 項目ごとの公開範囲(公開／非公開。未設定は公開されない)。
+.visibility {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 6px;
+
+  button {
+    padding: 2px 12px;
+    margin: 0;
+    border: 1px solid #d6d3d1;
+    border-radius: 999px;
+    background: #fff;
+    color: #57534e;
+    font-size: 0.8rem;
+    cursor: pointer;
+
+    &.selected {
+      border-color: #0f766e;
+      background: #0f766e;
+      color: #fff;
+    }
+  }
+}
+
+.visibility-fixed {
+  color: #78716c;
+  font-size: 0.8rem;
+}
+
+.visibility-unset {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef9c3;
+  color: #854d0e;
+  font-size: 0.75rem;
+}

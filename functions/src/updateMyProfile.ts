@@ -3,11 +3,12 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { requireCallerIdentity } from './callerIdentity';
 import {
-  getPrivateValues,
+  getPrivateProfile,
   getProfileFields,
   sanitizeDisplayName,
   sanitizeIconText,
   sanitizeProfileValues,
+  sanitizeVisibility,
   upsertProfileOptions,
   writePrivateValues,
 } from './profile';
@@ -24,7 +25,14 @@ import { threadPath } from './rooms';
  */
 export const updateMyProfile = onCall(async (request) => {
   const identity = requireCallerIdentity(request.auth);
-  const data = (request.data ?? {}) as { displayName?: unknown; profile?: unknown; photoPath?: unknown; avatarText?: unknown };
+  const data = (request.data ?? {}) as {
+    displayName?: unknown;
+    profile?: unknown;
+    photoPath?: unknown;
+    avatarText?: unknown;
+    /** 項目ごとの公開範囲(本人が選ぶ。未設定は非公開。省くと変えない)。 */
+    visibility?: unknown;
+  };
   // 省くと変えない。空文字で未設定に戻す。
   const avatarText = data.avatarText === undefined ? undefined : sanitizeIconText(data.avatarText);
 
@@ -39,12 +47,16 @@ export const updateMyProfile = onCall(async (request) => {
   const displayName = sanitizeDisplayName(data.displayName);
   // ゲストのプロフィール項目は「会員登録」(applyForMembership)で入力するため、ここでは名前・画像だけを変える。
   const isGuest = !isFullMember(member);
-  const { publicValues: profile, privateValues } = isGuest
-    ? { publicValues: member.profile ?? {}, privateValues: null }
-    : sanitizeProfileValues(fields, data.profile, {
-        publicValues: member.profile ?? {},
-        privateValues: await getPrivateValues(identity.tenantId, identity.memberId),
-      });
+  const previousPrivate = isGuest ? null : await getPrivateProfile(identity.tenantId, identity.memberId);
+  const visibility = previousPrivate ? sanitizeVisibility(fields, data.visibility, previousPrivate.visibility) : undefined;
+  const { publicValues: profile, privateValues } = previousPrivate
+    ? sanitizeProfileValues(
+        fields,
+        data.profile,
+        { publicValues: member.profile ?? {}, privateValues: previousPrivate.values },
+        visibility,
+      )
+    : { publicValues: member.profile ?? {}, privateValues: null };
 
   const photoPrefix = `tenants/${identity.tenantId}/members/${identity.memberId}/photo/`;
   let photoPath: string | null | undefined;
@@ -70,7 +82,7 @@ export const updateMyProfile = onCall(async (request) => {
   });
   // 非公開の値(生年月など)は会員データとは別に保存する。
   if (privateValues) {
-    writePrivateValues(writeBatch, identity.tenantId, identity.memberId, privateValues);
+    writePrivateValues(writeBatch, identity.tenantId, identity.memberId, privateValues, visibility);
   }
   await writeBatch.commit();
 
@@ -99,5 +111,5 @@ export const updateMyProfile = onCall(async (request) => {
     await batch.commit();
   }
 
-  return { displayName, profile, photoPath: photoPath === undefined ? member.photoPath ?? null : photoPath };
+  return { displayName, profile, visibility: visibility ?? null, photoPath: photoPath === undefined ? member.photoPath ?? null : photoPath };
 });

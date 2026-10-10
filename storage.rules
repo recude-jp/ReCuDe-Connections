@@ -52,7 +52,8 @@ service firebase.storage {
     }
 
     // トークの画像(SPEC 5-5)。ルームのメンバーだけが読み書きできる(Firestoreのルームの memberIds を参照する)。
-    // 画像は端末でJPEGに変換・縮小してから上げるため、JPEGだけを10MBまで受け付ける。上書きはできない。
+    // 画像は端末でJPEGに変換・縮小し、ルームの鍵で暗号化してから上げる(original.bin・thumb.bin。SECURITY-DEVELOPMENT.md 6-2)。
+    // 暗号化を入れる前の画像(original.jpg・thumb.jpg)は読むだけ残す。上書きはできない。
     match /tenants/{tenantId}/rooms/{roomId}/media/{messageId}/{fileName} {
       function isRoomMember() {
         return request.auth != null
@@ -63,9 +64,9 @@ service firebase.storage {
 
       allow read: if isRoomMember();
       allow create: if isRoomMember()
-        && fileName in ['original.jpg', 'thumb.jpg']
-        && request.resource.contentType == 'image/jpeg'
-        && request.resource.size < 10 * 1024 * 1024;
+        && fileName in ['original.bin', 'thumb.bin']
+        && request.resource.contentType == 'application/octet-stream'
+        && request.resource.size < 10 * 1024 * 1024 + 1024;
       allow update, delete: if false;
     }
 

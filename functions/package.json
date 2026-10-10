@@ -15,7 +15,8 @@
     "migrate:profile": "ts-node scripts/migrate-profile.ts",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "migrate:community-admins": "ts-node scripts/migrate-community-admins.ts"
+    "migrate:community-admins": "ts-node scripts/migrate-community-admins.ts",
+    "migrate:privacy": "ts-node scripts/migrate-privacy.ts"
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2",

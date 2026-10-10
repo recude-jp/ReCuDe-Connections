@@ -3,7 +3,14 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { requireAdmin, requireCallerIdentity } from './callerIdentity';
 import { syncMemberClaims } from './memberClaims';
-import { getPrivateValues, getProfileFields, sanitizeProfileValues, upsertProfileOptions, writePrivateValues } from './profile';
+import {
+  getPrivateProfile,
+  getProfileFields,
+  sanitizeProfileValues,
+  sanitizeVisibility,
+  upsertProfileOptions,
+  writePrivateValues,
+} from './profile';
 import { isFullMember, recountCommunities } from './communities';
 import type { Member, MembershipApplication, Tenant } from './models';
 
@@ -16,7 +23,12 @@ import type { Member, MembershipApplication, Tenant } from './models';
 /** ゲストが正規の会員を申請する(否認されたあとの再申請も同じ)。 */
 export const applyForMembership = onCall(async (request) => {
   const identity = requireCallerIdentity(request.auth);
-  const { profile: input, agreedToTerms } = (request.data ?? {}) as { profile?: unknown; agreedToTerms?: unknown };
+  const { profile: input, agreedToTerms, visibility: visibilityInput } = (request.data ?? {}) as {
+    profile?: unknown;
+    agreedToTerms?: unknown;
+    /** 項目ごとの公開範囲(本人が選ぶ。未設定は非公開)。 */
+    visibility?: unknown;
+  };
 
   const db = admin.firestore();
   const memberRef = db.doc(`tenants/${identity.tenantId}/members/${identity.memberId}`);
@@ -37,10 +49,14 @@ export const applyForMembership = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'すでに申請しています。審査の結果をお待ちください。');
   }
 
-  const { publicValues, privateValues } = sanitizeProfileValues(fields, input, {
-    publicValues: member.profile ?? {},
-    privateValues: await getPrivateValues(identity.tenantId, identity.memberId),
-  });
+  const previousPrivate = await getPrivateProfile(identity.tenantId, identity.memberId);
+  const visibility = sanitizeVisibility(fields, visibilityInput, previousPrivate.visibility);
+  const { publicValues, privateValues } = sanitizeProfileValues(
+    fields,
+    input,
+    { publicValues: member.profile ?? {}, privateValues: previousPrivate.values },
+    visibility,
+  );
   const terms = (tenantSnap.data() as Tenant | undefined)?.membershipTerms;
   if (terms?.requireAgreement && agreedToTerms !== true) {
     throw new HttpsError('failed-precondition', '会員の条件を確認し、同意してから申請してください。');
@@ -56,7 +72,7 @@ export const applyForMembership = onCall(async (request) => {
   // 非公開の値(生年月など)は会員データとは別に保存する。
   const batch = db.batch();
   batch.update(memberRef, { profile: publicValues, membershipApplication: application });
-  writePrivateValues(batch, identity.tenantId, identity.memberId, privateValues);
+  writePrivateValues(batch, identity.tenantId, identity.memberId, privateValues, visibility);
   await batch.commit();
   await upsertProfileOptions(identity.tenantId, fields, publicValues);
   return { status: 'pending' };

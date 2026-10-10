@@ -87,7 +87,41 @@
         (ngModelChange)="displayName.set($event)"
         required
       />
-      <button type="submit" [disabled]="loading() || !displayName().trim() || needsAgreement()">
+      <label for="loginId">ログインID <span class="required">必須</span></label>
+      <input
+        id="loginId"
+        name="loginId"
+        type="text"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+        maxlength="30"
+        [ngModel]="loginId()"
+        (ngModelChange)="loginId.set($event)"
+        required
+      />
+      <p class="hint">
+        次回からのログインに使います。半角の英字・数字・「.」「_」「-」で4〜30文字（英字を1文字以上含めてください）。
+      </p>
+      <div class="privacy-consent">
+        <p>
+          <strong>個人情報の取り扱い</strong><br />
+          お名前とプロフィール画像は、同じコミュニティの会員に表示されます。プロフィールのほかの項目は、
+          あとで項目ごとに公開・非公開を選べます（選ぶまでは公開されません）。
+        </p>
+        <label class="agreement">
+          <input
+            type="checkbox"
+            [checked]="agreedAdminAccess()"
+            (change)="agreedAdminAccess.set($any($event.target).checked)"
+          />
+          ログイン情報（電話番号・ログインID・メールアドレス）と非公開のプロフィールを、事務局（管理者）が会員の管理と審査のために見られることに同意します
+        </label>
+      </div>
+      <button
+        type="submit"
+        [disabled]="loading() || !displayName().trim() || !loginId().trim() || !agreedAdminAccess() || needsAgreement()"
+      >
         {{
           preview()?.community
             ? preview()!.community!.requireApproval

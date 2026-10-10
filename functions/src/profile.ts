@@ -1,7 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Member, MemberPrivateProfile, ProfileField, ProfileFieldType, ProfileValues } from './models';
+import type { Member, MemberPrivateProfile, ProfileField, ProfileFieldType, ProfileValues, ProfileVisibility } from './models';
 import { PROFILE_CONVERTERS, currentYearMonthInJapan, parseYearMonth } from './profileConverters';
 
 /**
@@ -141,38 +141,73 @@ export function sanitizeDisplayName(value: unknown): string {
 }
 
 export interface SanitizedProfile {
-  /** 会員データ(member.profile)に置く値。自動計算の結果も含む。 */
+  /** 会員データ(member.profile)に置く値(同じコミュニティの会員が読める)。公開にした項目と、自動計算の結果の公開分。 */
   publicValues: ProfileValues;
-  /** 非公開の値(members/[memberId]/private/profile)。 */
+  /**
+   * members/[memberId]/private/profile に置く値。visibility を渡したときは、すべての項目の値(公開の値も含む)。
+   * 渡さないとき(連携コミュニティの項目)は、管理者が非公開にした項目の値だけ。
+   */
   privateValues: ProfileValues;
+}
+
+/**
+ * 項目を会員に公開するか。visibility(本人が選んだ公開範囲)を渡したときは、本人が「公開」を選び、
+ * 管理者が非公開に決めていない項目だけ(未設定は非公開。SECURITY-DEVELOPMENT.md 7章)。
+ * 渡さないとき(連携コミュニティの項目)は、管理者が非公開に決めた項目以外。
+ */
+export function isPublicField(field: ProfileField, visibility?: Record<string, ProfileVisibility>): boolean {
+  if (field.private) {
+    return false;
+  }
+  return visibility ? visibility[field.id] === 'public' : true;
+}
+
+/**
+ * 本人が選んだ公開範囲を検査する。項目に無いキーは捨て、管理者が非公開に決めた項目は「非公開」にする。
+ * input に無い項目は、前の設定(previous)を残す(未設定のままなら未設定)。
+ */
+export function sanitizeVisibility(
+  fields: ProfileField[],
+  input: unknown,
+  previous: Record<string, ProfileVisibility> = {},
+): Record<string, ProfileVisibility> {
+  const values = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  const result: Record<string, ProfileVisibility> = {};
+  for (const field of fields) {
+    const raw = field.id in values ? values[field.id] : previous[field.id];
+    if (raw !== 'public' && raw !== 'private') {
+      continue;
+    }
+    result[field.id] = field.private ? 'private' : raw;
+  }
+  return result;
 }
 
 /**
  * 会員が入力したプロフィールの値を、テナントの項目に照らして検査・整形し、公開・非公開に分ける。
  * 非表示の項目は、入力済みの値(previous)をそのまま残す。項目に無いキーは捨てる。
  * 自動計算の項目は入力を受け付けず、変換元の値から計算する(変換元が未入力なら、前の値を残す)。
+ * visibility を渡すと、本人が選んだ公開範囲で分ける(isPublicField)。
  */
 export function sanitizeProfileValues(
   fields: ProfileField[],
   input: unknown,
   previous: { publicValues: ProfileValues; privateValues: ProfileValues } = { publicValues: {}, privateValues: {} },
+  visibility?: Record<string, ProfileVisibility>,
 ): SanitizedProfile {
   const values = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
-  const publicValues: ProfileValues = {};
-  const privateValues: ProfileValues = {};
-  const put = (field: ProfileField, value: string | string[]) => {
-    (field.private ? privateValues : publicValues)[field.id] = value;
-  };
+  const allValues: ProfileValues = {};
+  const previousAll = { ...previous.publicValues, ...previous.privateValues };
   const now = currentYearMonthInJapan();
 
   for (const field of fields) {
     if (field.type === 'derived') {
       continue;
     }
-    const prev = (field.private ? previous.privateValues : previous.publicValues)[field.id];
+    const prev = previousAll[field.id];
     if (field.hidden) {
       if (prev !== undefined) {
-        put(field, prev);
+        allValues[field.id] = prev;
       }
       continue;
     }
@@ -186,7 +221,7 @@ export function sanitizeProfileValues(
         throw new HttpsError('invalid-argument', `「${field.label}」を入力してください。`);
       }
       if (tags.length > 0) {
-        put(field, tags);
+        allValues[field.id] = tags;
       }
       continue;
     }
@@ -209,35 +244,55 @@ export function sanitizeProfileValues(
     if (value.length > TEXT_MAX) {
       throw new HttpsError('invalid-argument', `「${field.label}」は${TEXT_MAX}文字以内で入力してください。`);
     }
-    put(field, value);
+    allValues[field.id] = value;
   }
 
-  applyDerivedValues(fields, publicValues, privateValues, previous.publicValues, now);
+  applyDerivedValues(fields, allValues, previousAll, now);
+  return splitProfileValues(fields, allValues, visibility);
+}
+
+/** すべての項目の値を、会員に公開する値と、private/profile に置く値に分ける(SanitizedProfile 参照)。 */
+export function splitProfileValues(
+  fields: ProfileField[],
+  allValues: ProfileValues,
+  visibility?: Record<string, ProfileVisibility>,
+): SanitizedProfile {
+  const publicValues: ProfileValues = {};
+  const privateValues: ProfileValues = visibility ? { ...allValues } : {};
+  for (const field of fields) {
+    const value = allValues[field.id];
+    if (value === undefined) {
+      continue;
+    }
+    if (isPublicField(field, visibility)) {
+      publicValues[field.id] = value;
+    } else if (!visibility) {
+      privateValues[field.id] = value;
+    }
+  }
   return { publicValues, privateValues };
 }
 
 /**
- * 自動計算の項目の値を、変換元の値から計算して publicValues に入れる。
- * 変換元が未入力のときは、前の値(previousPublic。自動計算にする前に選んでいた値など)を残す。
+ * 自動計算の項目の値を、変換元の値から計算して values に入れる。
+ * 変換元が未入力のときは、前の値(previous。自動計算にする前に選んでいた値など)を残す。
  */
 export function applyDerivedValues(
   fields: ProfileField[],
-  publicValues: ProfileValues,
-  privateValues: ProfileValues,
-  previousPublic: ProfileValues,
+  values: ProfileValues,
+  previous: ProfileValues,
   now = currentYearMonthInJapan(),
 ): void {
   for (const field of fields) {
     if (field.type !== 'derived' || !field.derive) {
       continue;
     }
-    const source = fields.find((f) => f.id === field.derive!.source);
-    const sourceValue = source ? (source.private ? privateValues : publicValues)[source.id] : undefined;
+    const sourceValue = values[field.derive.source];
     const converted = PROFILE_CONVERTERS[field.derive.converter]?.convert(sourceValue, now);
     if (converted !== undefined) {
-      publicValues[field.id] = converted;
-    } else if (previousPublic[field.id] !== undefined) {
-      publicValues[field.id] = previousPublic[field.id];
+      values[field.id] = converted;
+    } else if (previous[field.id] !== undefined) {
+      values[field.id] = previous[field.id];
     }
   }
 }
@@ -248,19 +303,34 @@ export function privateProfilePath(tenantId: string, memberId: string): string {
 
 /** 会員の非公開のプロフィールの値(無ければ空)。 */
 export async function getPrivateValues(tenantId: string, memberId: string): Promise<ProfileValues> {
-  const snap = await admin.firestore().doc(privateProfilePath(tenantId, memberId)).get();
-  return (snap.data() as MemberPrivateProfile | undefined)?.values ?? {};
+  return (await getPrivateProfile(tenantId, memberId)).values;
 }
 
-/** 非公開の値を保存する(空なら何もしない。既存の値を消すときも空で上書きする)。 */
+/** 会員の private/profile(値と、本人が選んだ公開範囲)。 */
+export async function getPrivateProfile(
+  tenantId: string,
+  memberId: string,
+): Promise<{ values: ProfileValues; visibility: Record<string, ProfileVisibility> }> {
+  const data = (await admin.firestore().doc(privateProfilePath(tenantId, memberId)).get()).data() as
+    | MemberPrivateProfile
+    | undefined;
+  return { values: data?.values ?? {}, visibility: data?.visibility ?? {} };
+}
+
+/** 非公開の値(と公開範囲)を保存する。既存の値を消すときも上書きする。 */
 export function writePrivateValues(
   writer: FirebaseFirestore.WriteBatch | FirebaseFirestore.Transaction,
   tenantId: string,
   memberId: string,
   values: ProfileValues,
+  visibility?: Record<string, ProfileVisibility>,
 ): void {
   const ref = admin.firestore().doc(privateProfilePath(tenantId, memberId));
-  (writer as FirebaseFirestore.WriteBatch).set(ref, { values, updatedAt: FieldValue.serverTimestamp() } satisfies MemberPrivateProfile);
+  (writer as FirebaseFirestore.WriteBatch).set(ref, {
+    values,
+    ...(visibility ? { visibility } : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+  } satisfies MemberPrivateProfile);
 }
 
 /**
@@ -280,11 +350,19 @@ export async function recomputeDerivedValues(tenantId: string): Promise<number> 
   let pending = 0;
   for (const doc of members.docs) {
     const member = doc.data() as Member;
-    const publicValues = { ...(member.profile ?? {}) };
-    const privateValues = await getPrivateValues(tenantId, doc.id);
-    applyDerivedValues(fields, publicValues, privateValues, member.profile ?? {}, now);
-    if (JSON.stringify(publicValues) !== JSON.stringify(member.profile ?? {})) {
-      batch.update(doc.ref, { profile: publicValues });
+    const { values: stored, visibility } = await getPrivateProfile(tenantId, doc.id);
+    const allValues = { ...(member.profile ?? {}), ...stored };
+    applyDerivedValues(fields, allValues, allValues, now);
+    const { publicValues, privateValues } = splitProfileValues(fields, allValues, visibility);
+    const publicChanged = JSON.stringify(publicValues) !== JSON.stringify(member.profile ?? {});
+    const privateChanged = JSON.stringify(privateValues) !== JSON.stringify(stored);
+    if (publicChanged || privateChanged) {
+      if (publicChanged) {
+        batch.update(doc.ref, { profile: publicValues });
+      }
+      if (privateChanged) {
+        writePrivateValues(batch, tenantId, doc.id, privateValues, visibility);
+      }
       changed++;
       if (++pending >= 400) {
         await batch.commit();
@@ -366,7 +444,7 @@ export async function recomputeCommunityDerivedValues(
   for (const doc of members.docs) {
     const current = (doc.data() as Member).communityProfiles?.[communityId] ?? {};
     const values = { ...current };
-    applyDerivedValues(fields, values, {}, current, now);
+    applyDerivedValues(fields, values, current, now);
     if (JSON.stringify(values) !== JSON.stringify(current)) {
       batch.update(doc.ref, { [`communityProfiles.${communityId}`]: values });
       changed++;

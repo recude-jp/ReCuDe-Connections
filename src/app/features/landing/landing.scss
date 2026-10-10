@@ -1,0 +1,704 @@
+// トップページ。アプリと同じ深緑(清流)を基調に、山並みの淡い緑と、ふるさとの温かみの橙を差し色にする。
+$accent: #0f766e;
+$accent-dark: #115e59;
+$accent-soft: #ccfbf1;
+$warm: #c2410c;
+$warm-soft: #ffedd5;
+$ink: #1c1917;
+$muted: #57534e;
+$line: #e7e5e4;
+$paper: #fafaf9;
+
+:host {
+  display: block;
+  background: #fff;
+}
+
+.landing {
+  color: $ink;
+  line-height: 1.8;
+}
+
+section {
+  padding: 72px 24px;
+
+  > h2 {
+    max-width: 960px;
+    margin: 0 auto 16px;
+    font-size: 1.75rem;
+    line-height: 1.5;
+    text-align: center;
+  }
+}
+
+.section-lead {
+  max-width: 640px;
+  margin: 0 auto 40px;
+  color: $muted;
+  text-align: center;
+}
+
+.sp {
+  display: none;
+}
+
+// ---- ヘッダ ----
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid $line;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: $ink;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.topbar-button {
+  padding: 6px 16px;
+  border: 1px solid $accent;
+  border-radius: 999px;
+  color: $accent;
+  font-size: 0.9rem;
+  text-decoration: none;
+
+  &:hover {
+    background: $accent;
+    color: #fff;
+  }
+}
+
+// ---- ボタン ----
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+  padding: 14px 28px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &.primary {
+    border: none;
+    background: $accent;
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(15, 118, 110, 0.3);
+
+    &:hover {
+      background: $accent-dark;
+    }
+  }
+
+  &.ghost {
+    border: 1px solid $accent;
+    background: #fff;
+    color: $accent;
+  }
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  &.center {
+    justify-content: center;
+  }
+}
+
+// ---- ファーストビュー ----
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: 32px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-top: 64px;
+  padding-bottom: 64px;
+}
+
+.eyebrow {
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: $accent-soft;
+  color: $accent-dark;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.hero h1 {
+  margin: 0 0 20px;
+  font-size: 2.6rem;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+
+  em {
+    font-style: normal;
+    color: $accent;
+    background: linear-gradient(transparent 70%, $warm-soft 70%);
+  }
+}
+
+.lead {
+  margin: 0 0 32px;
+  color: $muted;
+  font-size: 1.05rem;
+}
+
+.hero-art {
+  width: 100%;
+  height: auto;
+
+  .mountain.far {
+    fill: #d9f99d;
+    opacity: 0.55;
+  }
+  .mountain.near {
+    fill: #99f6e4;
+    opacity: 0.6;
+  }
+  .river {
+    fill: none;
+    stroke: $accent;
+    stroke-width: 4;
+    stroke-linecap: round;
+    opacity: 0.7;
+
+    &.thin {
+      stroke-width: 2;
+      opacity: 0.4;
+    }
+  }
+  .links line {
+    stroke: $accent;
+    stroke-width: 2;
+    opacity: 0.35;
+  }
+  .nodes circle {
+    fill: #fff;
+    stroke: $accent;
+    stroke-width: 3;
+
+    &.accent {
+      fill: $warm-soft;
+      stroke: $warm;
+    }
+  }
+}
+
+// ---- コンセプト ----
+.concept {
+  background: $paper;
+}
+
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.compare-col {
+  padding: 28px;
+  border-radius: 16px;
+
+  h3 {
+    margin: 0 0 12px;
+    font-size: 1.1rem;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    position: relative;
+    padding-left: 28px;
+    margin-bottom: 8px;
+  }
+
+  &.other {
+    background: #f5f5f4;
+    color: $muted;
+
+    li::before {
+      content: '–';
+      position: absolute;
+      left: 6px;
+    }
+  }
+
+  &.ours {
+    border: 2px solid $accent;
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(15, 118, 110, 0.12);
+
+    h3 {
+      color: $accent;
+    }
+
+    li::before {
+      content: '✓';
+      position: absolute;
+      left: 4px;
+      color: $accent;
+      font-weight: 700;
+    }
+  }
+}
+
+// ---- 世代ごとの価値 ----
+.generation-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 1000px;
+  margin: 40px auto 0;
+}
+
+.generation-card {
+  padding: 32px;
+  border-radius: 20px;
+
+  .age {
+    display: inline-block;
+    margin: 0 0 12px;
+    padding: 2px 12px;
+    border-radius: 999px;
+    background: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  h3 {
+    margin: 0 0 12px;
+    font-size: 1.35rem;
+    line-height: 1.5;
+  }
+
+  p {
+    margin: 0 0 16px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.2em;
+  }
+
+  li {
+    margin-bottom: 4px;
+  }
+
+  &.young {
+    background: $accent-soft;
+
+    .age,
+    h3 {
+      color: $accent-dark;
+    }
+  }
+
+  &.senior {
+    background: $warm-soft;
+
+    .age,
+    h3 {
+      color: $warm;
+    }
+  }
+}
+
+// ---- できること ----
+.features {
+  background: $paper;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 1040px;
+  margin: 40px auto 0;
+}
+
+.feature {
+  padding: 28px 24px;
+  border: 1px solid $line;
+  border-radius: 16px;
+  background: #fff;
+
+  h3 {
+    margin: 12px 0 8px;
+    font-size: 1.05rem;
+  }
+
+  p {
+    margin: 0;
+    color: $muted;
+    font-size: 0.92rem;
+  }
+}
+
+.feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: $accent-soft;
+  color: $accent;
+  font-size: 1.2rem;
+}
+
+.soon {
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #f5f5f4;
+  color: $muted;
+  font-size: 0.72rem;
+  font-weight: 500;
+  vertical-align: 2px;
+}
+
+// ---- 参加の流れ ----
+.step-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+
+  li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 28px 24px;
+    border-radius: 16px;
+    background: $paper;
+    counter-increment: step;
+
+    &::before {
+      content: 'STEP ' counter(step);
+      color: $warm;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+  }
+
+  h3 {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+  }
+
+  p {
+    margin: 0;
+    color: $muted;
+    font-size: 0.92rem;
+  }
+}
+
+.step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: $accent;
+  color: #fff;
+}
+
+.steps-note {
+  max-width: 640px;
+  margin: 32px auto 0;
+  color: $muted;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+// ---- よくある質問 ----
+.faq {
+  background: $paper;
+
+  details {
+    max-width: 720px;
+    margin: 0 auto 12px;
+    border: 1px solid $line;
+    border-radius: 12px;
+    background: #fff;
+
+    &[open] summary::after {
+      transform: rotate(45deg);
+    }
+  }
+
+  summary {
+    position: relative;
+    padding: 18px 48px 18px 20px;
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &::after {
+      content: '+';
+      position: absolute;
+      top: 50%;
+      right: 20px;
+      margin-top: -0.7em;
+      color: $accent;
+      font-size: 1.3rem;
+      line-height: 1.4;
+      transition: transform 0.2s ease;
+    }
+  }
+
+  details p {
+    margin: 0;
+    padding: 0 20px 20px;
+    color: $muted;
+  }
+}
+
+// ---- 最後の呼びかけ ----
+.closing {
+  background: linear-gradient(135deg, $accent 0%, $accent-dark 100%);
+  color: #fff;
+  text-align: center;
+
+  > h2 {
+    color: #fff;
+  }
+
+  p {
+    margin: 0 0 28px;
+    opacity: 0.9;
+  }
+
+  .button.primary {
+    background: #fff;
+    color: $accent-dark;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+
+    &:hover {
+      background: $warm-soft;
+    }
+  }
+}
+
+.footer {
+  padding: 32px 24px;
+  color: $muted;
+  font-size: 0.85rem;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+
+  .powered {
+    margin-top: 4px;
+    color: #a8a29e;
+    font-size: 0.75rem;
+  }
+}
+
+// ---- スマホ ----
+@media (max-width: 767px) {
+  section {
+    padding: 56px 16px;
+
+    > h2 {
+      font-size: 1.4rem;
+    }
+  }
+
+  .sp {
+    display: inline;
+  }
+
+  .topbar {
+    padding: 10px 16px;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+
+  .hero h1 {
+    font-size: 1.85rem;
+  }
+
+  .hero-art {
+    order: -1;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+
+  .hero-actions .button {
+    width: 100%;
+  }
+
+  .compare,
+  .generation-cards,
+  .feature-grid,
+  .step-list {
+    grid-template-columns: 1fr;
+  }
+
+  .generation-card {
+    padding: 24px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.request-cta {
+  max-width: 640px;
+  margin: 32px auto 0;
+  padding: 24px;
+  border: 1px dashed $accent;
+  border-radius: 16px;
+  text-align: center;
+
+  p {
+    margin: 0 0 16px;
+    color: $muted;
+    font-size: 0.92rem;
+  }
+}
+
+.faq details p a {
+  color: $accent;
+}
+
+// ---- 秘匿性 ----
+// ほかの節と区別して目に留まるよう、濃い色の背景にする。
+.privacy {
+  background: linear-gradient(160deg, #134e4a 0%, #0f172a 100%);
+  color: #fff;
+
+  > .privacy-inner > h2 {
+    max-width: 960px;
+    margin: 0 auto 16px;
+    font-size: 1.9rem;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  .section-lead {
+    color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+.privacy-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: #5eead4;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.privacy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.privacy-card {
+  padding: 28px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+
+  h3 {
+    margin: 14px 0 10px;
+    font-size: 1.1rem;
+    line-height: 1.6;
+  }
+
+  p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.92rem;
+  }
+}
+
+.privacy-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(94, 234, 212, 0.15);
+  color: #5eead4;
+  font-size: 1.3rem;
+}
+
+@media (max-width: 767px) {
+  .privacy > .privacy-inner > h2 {
+    font-size: 1.45rem;
+  }
+
+  .privacy-grid {
+    grid-template-columns: 1fr;
+  }
+}

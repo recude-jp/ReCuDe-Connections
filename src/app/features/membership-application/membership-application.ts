@@ -4,7 +4,7 @@ import { firstValueFrom, of, switchMap } from 'rxjs';
 import { AuthService, MemberSession } from '../../core/services/auth.service';
 import { MemberService } from '../../core/services/member.service';
 import { MemberSearchService } from '../../core/services/member-search.service';
-import type { Member, ProfileValues, Tenant } from '../../core/models/firestore.models';
+import type { Member, ProfileValues, ProfileVisibility, Tenant } from '../../core/models/firestore.models';
 import { ProfileForm } from '../../shared/profile-form/profile-form';
 import { MembershipTermsView } from '../../shared/membership-terms/membership-terms';
 import { missingRequiredFields, visibleProfileFields } from '../../core/utils/profile-fields';
@@ -64,6 +64,8 @@ export class MembershipApplicationPage {
   });
 
   readonly profile = signal<ProfileValues>({});
+  /** 項目ごとの公開範囲(本人が選ぶ。未設定は非公開)。 */
+  readonly visibility = signal<Record<string, ProfileVisibility>>({});
   readonly options = signal<Record<string, string[]>>({});
   readonly agreed = signal(false);
   readonly submitting = signal(false);
@@ -87,8 +89,9 @@ export class MembershipApplicationPage {
   private async prepareForm(tenantId: string, member: Member): Promise<void> {
     this.formInitialized = true;
     // 非公開の値(生年月など)も、入力済みなら初期値にする(否認後の再申請など)。
-    const privateValues = await firstValueFrom(this.memberService.getPrivateProfile(tenantId, this.memberSession()!.memberId));
-    this.profile.set({ ...(member.profile ?? {}), ...privateValues });
+    const stored = await firstValueFrom(this.memberService.getPrivateProfileDoc(tenantId, this.memberSession()!.memberId));
+    this.profile.set({ ...(member.profile ?? {}), ...stored.values });
+    this.visibility.set({ ...stored.visibility });
     const entries = await Promise.all(
       this.fields()
         .filter((field) => (field.type === 'text' || field.type === 'tags') && !field.private)
@@ -104,7 +107,7 @@ export class MembershipApplicationPage {
     this.errorMessage.set('');
     this.submitting.set(true);
     try {
-      await this.memberService.applyForMembership(this.profile(), this.agreed());
+      await this.memberService.applyForMembership(this.profile(), this.agreed(), this.visibility());
     } catch (err) {
       this.errorMessage.set(toErrorMessage(err));
     } finally {

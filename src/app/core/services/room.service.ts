@@ -3,7 +3,6 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   FieldPath,
   Firestore,
-  addDoc,
   collection,
   collectionData,
   deleteField,
@@ -17,11 +16,13 @@ import {
   updateDoc,
   where,
 } from '@angular/fire/firestore';
-import { Storage, getDownloadURL, ref, uploadBytesResumable } from '@angular/fire/storage';
+import { Storage, getBytes, getDownloadURL, ref, uploadBytesResumable } from '@angular/fire/storage';
 import { Observable, catchError, map, of } from 'rxjs';
 import type {
   GroupInvitationNotice,
   Member,
+  MessageContent,
+  MessageMedia,
   Room,
   RoomInvitation,
   RoomMember,
@@ -30,12 +31,14 @@ import type {
   Thread,
 } from '../models/firestore.models';
 import type { PreparedImage } from '../utils/image';
+import { E2eeService, RoomKeyContext } from './e2ee.service';
 
 export type WithId<T> = T & { id: string };
 
 /**
  * トーク(ルーム方式の1対1・グループ)のデータアクセス。
  * メッセージは低レイテンシのためクライアントから直接書き込む(firestore.rulesで送信者本人・ルームのメンバーを検証)。
+ * メッセージの中身と画像は、送る前に端末でルームの鍵で暗号化する(E2eeService。SECURITY-DEVELOPMENT.md 6章)。
  * ルームの作成・招待・参加・退出はCloud Functions経由。
  * 会員エリアのルート(member.routes.ts)で提供する(Firestore SDKを初回読み込みに含めないため)。
  */
@@ -44,8 +47,9 @@ export class RoomService {
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
   private readonly storage = inject(Storage);
+  private readonly e2ee = inject(E2eeService);
 
-  /** 画像のダウンロードURLのキャッシュ(同じ画像を何度も問い合わせないため)。 */
+  /** 画像の表示用URLのキャッシュ(同じ画像を何度も取得・復号しないため)。 */
   private readonly mediaUrls = new Map<string, Promise<string>>();
 
   /** 自分のトーク一覧(新着順)。 */
@@ -109,37 +113,42 @@ export class RoomService {
     >;
   }
 
-  async sendText(tenantId: string, roomId: string, senderId: string, text: string): Promise<void> {
-    await this.send(tenantId, roomId, { senderId, type: 'text', text });
+  async sendText(tenantId: string, room: RoomKeyContext, senderId: string, text: string): Promise<void> {
+    await this.send(tenantId, room, senderId, 'text', { text });
   }
 
-  async sendStamp(tenantId: string, roomId: string, senderId: string, stamp: StampRef): Promise<void> {
+  async sendStamp(tenantId: string, room: RoomKeyContext, senderId: string, stamp: StampRef): Promise<void> {
     const ref: StampRef = { packId: stamp.packId, stampId: stamp.stampId, ...(stamp.ownerId ? { ownerId: stamp.ownerId } : {}) };
-    await this.send(tenantId, roomId, { senderId, type: 'stamp', stamp: ref });
+    await this.send(tenantId, room, senderId, 'stamp', { stamp: ref });
   }
 
   /**
-   * 画像を送る(SPEC 5-5)。端末で縮小・再エンコード済みの画像を、このメッセージ専用の Storage のパスに上げてから
-   * メッセージを書き込む。onProgress には0〜1の送信の進み具合を渡す。
+   * 画像を送る(SPEC 5-5)。端末で縮小・再エンコード済みの画像をルームの鍵で暗号化し、このメッセージ専用の
+   * Storage のパスに上げてからメッセージを書き込む。onProgress には0〜1の送信の進み具合を渡す。
    */
   async sendImage(
     tenantId: string,
-    roomId: string,
+    room: RoomKeyContext,
     senderId: string,
     image: PreparedImage,
     onProgress?: (ratio: number) => void,
   ): Promise<void> {
-    const messageRef = doc(collection(this.firestore, `tenants/${tenantId}/rooms/${roomId}/messages`));
-    const mediaPath = `tenants/${tenantId}/rooms/${roomId}/media/${messageRef.id}`;
-    const path = `${mediaPath}/original.jpg`;
-    const thumbPath = `${mediaPath}/thumb.jpg`;
+    const messageRef = doc(collection(this.firestore, `tenants/${tenantId}/rooms/${room.id}/messages`));
+    const mediaPath = `tenants/${tenantId}/rooms/${room.id}/media/${messageRef.id}`;
+    const path = `${mediaPath}/original.bin`;
+    const thumbPath = `${mediaPath}/thumb.bin`;
 
-    const total = image.original.size + image.thumb.size;
+    const [original, thumb] = await Promise.all([
+      this.e2ee.encryptFile(room, path, await image.original.arrayBuffer()),
+      this.e2ee.encryptFile(room, thumbPath, await image.thumb.arrayBuffer()),
+    ]);
+
+    const total = original.blob.size + thumb.blob.size;
     const sent = new Map<string, number>();
     const upload = (filePath: string, blob: Blob) =>
       new Promise<void>((resolve, reject) => {
         const task = uploadBytesResumable(ref(this.storage, filePath), blob, {
-          contentType: 'image/jpeg',
+          contentType: 'application/octet-stream',
           // 同じパスは上書きしない(storage.rules)ため、長期間キャッシュしてよい。
           cacheControl: 'private, max-age=31536000',
         });
@@ -153,33 +162,43 @@ export class RoomService {
           () => resolve(),
         );
       });
-    await Promise.all([upload(path, image.original), upload(thumbPath, image.thumb)]);
+    await Promise.all([upload(path, original.blob), upload(thumbPath, thumb.blob)]);
 
-    await setDoc(messageRef, {
-      senderId,
-      type: 'image',
-      media: {
-        path,
-        thumbPath,
-        contentType: 'image/jpeg',
-        width: image.width,
-        height: image.height,
-        size: image.original.size,
-      },
-      status: 'ready',
-      createdAt: serverTimestamp(),
-    });
+    const media: MessageMedia = {
+      path,
+      thumbPath,
+      contentType: 'image/jpeg',
+      width: image.width,
+      height: image.height,
+      size: image.original.size,
+      epoch: original.epoch,
+    };
+    const enc = await this.e2ee.encryptMessage(room, messageRef.id, senderId, { media } satisfies MessageContent);
+    await setDoc(messageRef, { senderId, type: 'image', enc, status: 'ready', createdAt: serverTimestamp() });
   }
 
-  /** 画像のダウンロードURL(ルームのメンバーだけが取得できる。storage.rules参照)。 */
-  getMediaUrl(path: string): Promise<string> {
+  /**
+   * 画像の表示用URL(ルームのメンバーだけが取得できる。storage.rules参照)。暗号化した画像は、取得して端末で
+   * 復号し、ブラウザの中だけのURL(blob:)にする。which: 元の画像か縮小版か。
+   */
+  getMediaUrl(roomId: string, media: MessageMedia, which: 'original' | 'thumb'): Promise<string> {
+    const path = which === 'original' ? media.path : media.thumbPath;
     let url = this.mediaUrls.get(path);
     if (!url) {
-      url = getDownloadURL(ref(this.storage, path));
+      url = media.epoch === undefined ? getDownloadURL(ref(this.storage, path)) : this.decryptMedia(roomId, media, path);
       url.catch(() => this.mediaUrls.delete(path));
       this.mediaUrls.set(path, url);
     }
     return url;
+  }
+
+  private async decryptMedia(roomId: string, media: MessageMedia, path: string): Promise<string> {
+    const data = await getBytes(ref(this.storage, path));
+    const plain = await this.e2ee.decryptFile(roomId, media.epoch!, path, data);
+    if (!plain) {
+      throw new Error('このトークの暗号鍵がまだ届いていません。');
+    }
+    return URL.createObjectURL(new Blob([plain], { type: media.contentType }));
   }
 
   /** メッセージに自分のリアクションを付ける／外す(null)。1人1つ(firestore.rules参照)。 */
@@ -241,12 +260,16 @@ export class RoomService {
     return { deleted };
   }
 
+  /** メッセージの中身を暗号化して書き込む(メッセージのIDを先に決め、暗号文をそのIDに結びつける)。 */
   private async send(
     tenantId: string,
-    roomId: string,
-    message: Pick<RoomMessage, 'senderId' | 'type' | 'text' | 'stamp'>,
+    room: RoomKeyContext,
+    senderId: string,
+    type: RoomMessage['type'],
+    content: MessageContent,
   ): Promise<void> {
-    const ref = collection(this.firestore, `tenants/${tenantId}/rooms/${roomId}/messages`);
-    await addDoc(ref, { ...message, status: 'ready', createdAt: serverTimestamp() });
+    const messageRef = doc(collection(this.firestore, `tenants/${tenantId}/rooms/${room.id}/messages`));
+    const enc = await this.e2ee.encryptMessage(room, messageRef.id, senderId, content);
+    await setDoc(messageRef, { senderId, type, enc, status: 'ready', createdAt: serverTimestamp() });
   }
 }

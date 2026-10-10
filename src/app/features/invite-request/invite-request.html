@@ -1,0 +1,143 @@
+<div class="request-page">
+  <header class="topbar">
+    <a routerLink="/about" class="brand">
+      @if (logoUrl()) {
+        <img [src]="logoUrl()" alt="" class="brand-logo" />
+      }
+      <span>{{ serviceName() }}</span>
+    </a>
+    <a routerLink="/login" class="topbar-link">ログイン</a>
+  </header>
+
+  <main class="card">
+    @if (submitted()) {
+      <div class="done">
+        <h1>申請を受け付けました</h1>
+        <p>
+          ご申請ありがとうございます。事務局でご入力の内容を確認し、ご利用の条件を満たしていることを確かめたうえで、
+          ご入力の電話番号あてに招待のご案内（SMS）をお送りします。
+        </p>
+        <p class="muted">確認には数日かかることがあります。しばらくお待ちください。</p>
+        <a routerLink="/about" class="button ghost">トップページへ戻る</a>
+      </div>
+    } @else {
+      <h1>招待の申請</h1>
+      <p class="intro">
+        {{ serviceName() }}は紹介制のサービスです。お知り合いに会員がいない方は、こちらから招待を申請してください。
+        事務局が内容を確認して、招待をお送りします。
+      </p>
+      <div class="condition">
+        <strong>ご利用の条件</strong>
+        <p>{{ organization() }}の会員、または連携している在京同窓会の会員であること。</p>
+      </div>
+
+      <form (ngSubmit)="submit()">
+        <fieldset>
+          <legend>あなたについて</legend>
+
+          <label for="name">お名前 <span class="required">必須</span></label>
+          <input id="name" name="name" type="text" maxlength="30" autocomplete="name"
+            [ngModel]="name()" (ngModelChange)="name.set($event)" />
+
+          <label for="phone">電話番号 <span class="required">必須</span></label>
+          <input id="phone" name="phone" type="tel" placeholder="09012345678" autocomplete="tel"
+            [ngModel]="phoneNumber()" (ngModelChange)="phoneNumber.set($event)" />
+          <p class="hint">招待のご案内をSMSでお送りします。参加するときも、この電話番号で確認します。</p>
+
+          <label for="email">メールアドレス <span class="optional">任意</span></label>
+          <input id="email" name="email" type="email" maxlength="200" autocomplete="email"
+            [ngModel]="email()" (ngModelChange)="email.set($event)" />
+
+          <label for="hometown">出身地 <span class="required">必須</span></label>
+          <input id="hometown" name="hometown" type="text" maxlength="50" placeholder="例: 岐阜市"
+            [ngModel]="hometown()" (ngModelChange)="hometown.set($event)" />
+
+          <label for="highSchool">出身高校 <span class="note">高校か中学のどちらかは必須</span></label>
+          <input id="highSchool" name="highSchool" type="text" maxlength="50" placeholder="例: 岐阜北高校"
+            [ngModel]="highSchool()" (ngModelChange)="highSchool.set($event)" />
+
+          <label for="juniorHighSchool">出身中学</label>
+          <input id="juniorHighSchool" name="juniorHighSchool" type="text" maxlength="50" placeholder="例: 岐阜東中学校"
+            [ngModel]="juniorHighSchool()" (ngModelChange)="juniorHighSchool.set($event)" />
+        </fieldset>
+
+        <fieldset>
+          <legend>ご利用の条件の確認</legend>
+
+          <p class="question">{{ organization() }}の会員ですか？ <span class="required">必須</span></p>
+          <div class="choices">
+            <label class="choice" [class.selected]="kenjinkaiMember() === true">
+              <input type="radio" name="kenjinkai" [checked]="kenjinkaiMember() === true" (change)="kenjinkaiMember.set(true)" />
+              はい
+            </label>
+            <label class="choice" [class.selected]="kenjinkaiMember() === false">
+              <input type="radio" name="kenjinkai" [checked]="kenjinkaiMember() === false" (change)="kenjinkaiMember.set(false)" />
+              いいえ
+            </label>
+          </div>
+
+          <p class="question">在京同窓会の会員ですか？ <span class="required">必須</span></p>
+          <div class="choices">
+            <label class="choice" [class.selected]="alumniMember() === true">
+              <input type="radio" name="alumni" [checked]="alumniMember() === true" (change)="alumniMember.set(true)" />
+              はい
+            </label>
+            <label class="choice" [class.selected]="alumniMember() === false">
+              <input type="radio" name="alumni" [checked]="alumniMember() === false" (change)="alumniMember.set(false)" />
+              いいえ
+            </label>
+          </div>
+
+          @if (alumniMember() === true) {
+            <label for="alumniChoice">加入している在京同窓会 <span class="required">必須</span></label>
+            <select id="alumniChoice" name="alumniChoice" [ngModel]="alumniChoice()" (ngModelChange)="alumniChoice.set($event)">
+              <option value="" disabled>選んでください</option>
+              @for (community of communities(); track community.id) {
+                <option [value]="community.id">{{ community.name }}</option>
+              }
+              <option [value]="OTHER_ALUMNI">一覧にない（名前を入力する）</option>
+            </select>
+            @if (alumniChoice() === OTHER_ALUMNI) {
+              <input name="alumniOtherName" type="text" maxlength="50" placeholder="例: 〇〇高校 在京同窓会"
+                [ngModel]="alumniOtherName()" (ngModelChange)="alumniOtherName.set($event)" />
+            }
+          }
+
+          @if (notEligible()) {
+            <div class="not-eligible">
+              <p>
+                申し訳ありません。ご利用には、{{ organization() }}の会員か、連携している在京同窓会の会員であることが必要です。
+              </p>
+              <p>{{ organization() }}への入会をご希望の方は、事務局までお問い合わせください。</p>
+            </div>
+          }
+        </fieldset>
+
+        <fieldset>
+          <legend>そのほか</legend>
+
+          <label for="referrer">紹介者 <span class="optional">任意</span></label>
+          <input id="referrer" name="referrer" type="text" maxlength="30" placeholder="このサービスを知ったきっかけの方など"
+            [ngModel]="referrer()" (ngModelChange)="referrer.set($event)" />
+
+          <label for="note">ご質問・ご連絡 <span class="optional">任意</span></label>
+          <textarea id="note" name="note" rows="3" maxlength="500"
+            [ngModel]="note()" (ngModelChange)="note.set($event)"></textarea>
+        </fieldset>
+
+        <label class="agreement">
+          <input type="checkbox" [checked]="agreed()" (change)="agreed.set($any($event.target).checked)" />
+          入力した内容を、事務局がご利用の条件の確認と招待のご連絡に使うことに同意します
+        </label>
+
+        @if (errorMessage()) {
+          <p class="error">{{ errorMessage() }}</p>
+        }
+
+        <button type="submit" class="button primary" [disabled]="!canSubmit()">
+          {{ submitting() ? '送信しています...' : '申請する' }}
+        </button>
+      </form>
+    }
+  </main>
+</div>

@@ -6,10 +6,40 @@
       @if (field.required) {
         <span class="required">必須</span>
       }
-      @if (field.private) {
+      @if (field.private && !showVisibility()) {
         <span class="private" title="本人と管理者だけが見られます">非公開</span>
       }
     </label>
+    @if (showVisibility()) {
+      @let current = visibilityOf(field);
+      <div class="visibility" role="radiogroup" [attr.aria-label]="field.label + 'の公開範囲'">
+        @if (field.private) {
+          <span class="visibility-fixed">非公開（この項目は公開できません）</span>
+        } @else {
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="current === 'public'"
+            [class.selected]="current === 'public'"
+            (click)="setVisibility(field.id, 'public')"
+          >
+            公開
+          </button>
+          <button
+            type="button"
+            role="radio"
+            [attr.aria-checked]="current === 'private'"
+            [class.selected]="current === 'private'"
+            (click)="setVisibility(field.id, 'private')"
+          >
+            非公開
+          </button>
+          @if (!current) {
+            <span class="visibility-unset">未設定（公開されません）</span>
+          }
+        }
+      </div>
+    }
 
     @switch (field.type) {
       @case ('derived') {
@@ -33,7 +63,7 @@
             }
           </select>
         </div>
-        @if (field.private) {
+        @if (field.private && !showVisibility()) {
           <p class="hint">この項目は他の会員には見えません（本人と事務局だけが見られます）。</p>
         }
       }

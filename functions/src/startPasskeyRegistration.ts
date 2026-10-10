@@ -3,7 +3,8 @@ import * as admin from 'firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
 import { isoUint8Array } from '@simplewebauthn/server/helpers';
-import type { Member, PasskeyCredential, WebauthnChallenge } from './models';
+import type { Member, MemberLoginSettings, PasskeyCredential, WebauthnChallenge } from './models';
+import { loginSettingsPath } from './memberPrivate';
 import { requireCallerIdentity } from './callerIdentity';
 import {
   CHALLENGE_TTL_MS,
@@ -28,9 +29,14 @@ export const startPasskeyRegistration = onCall(async (request) => {
 
   // OS/ブラウザ側のパスキー管理UI(Chromeのパスワードマネージャー、iCloudキーチェーン等)に
   // そのまま表示される値のため、Firestoreの内部ID(memberId等)ではなく利用者に意味のある値を使う。
-  const memberSnap = await db.doc(`tenants/${identity.tenantId}/members/${identity.memberId}`).get();
+  const [memberSnap, settingsSnap] = await Promise.all([
+    db.doc(`tenants/${identity.tenantId}/members/${identity.memberId}`).get(),
+    db.doc(loginSettingsPath(identity)).get(),
+  ]);
   const memberData = memberSnap.data() as Member | undefined;
-  const userName = memberData?.phoneNumber ?? identity.uid;
+  const settings = settingsSnap.data() as Partial<MemberLoginSettings> | undefined;
+  // パスキーの一覧で見分けやすいよう、ログインIDを優先する(未設定なら電話番号)。
+  const userName = settings?.loginId ?? settings?.phoneNumber ?? memberData?.phoneNumber ?? identity.uid;
   const userDisplayName = memberData?.displayName ?? userName;
 
   const options = await generateRegistrationOptions({

@@ -38,7 +38,17 @@
 
         <h3>プロフィール</h3>
         @if (fields().length > 0) {
-          <app-profile-form idPrefix="membership" [fields]="fields()" [options]="options()" [(values)]="profile" />
+          <p class="hint">
+            項目ごとに「公開」（同じコミュニティの会員に見せる）か「非公開」（本人と事務局だけ）を選んでください。選ばない項目は公開されません。
+          </p>
+          <app-profile-form
+            idPrefix="membership"
+            [fields]="fields()"
+            [options]="options()"
+            [showVisibility]="true"
+            [(values)]="profile"
+            [(visibility)]="visibility"
+          />
         } @else {
           <p class="placeholder">入力する項目はありません。</p>
         }

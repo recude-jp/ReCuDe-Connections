@@ -5,7 +5,19 @@ admin.initializeApp();
 admin.firestore().settings({ ignoreUndefinedProperties: true });
 
 export { resolveMemberSession } from './resolveMemberSession';
+export {
+  startLogin,
+  sendLoginCode,
+  verifyLoginCode,
+  getLoginSettings,
+  setLoginId,
+  startEmailRegistration,
+  confirmEmailRegistration,
+  setEmailLogin,
+  removeEmail,
+} from './loginAccount';
 export { getMyInviteQr, regenerateInviteQr, createInvite, getInvitePreview, joinAsGuest } from './invites';
+export { getInviteRequestOptions, submitInviteRequest, decideInviteRequest } from './inviteRequests';
 export { createCommunity, updateCommunity, deleteCommunity } from './communities';
 export {
   setCommunityAdmin,

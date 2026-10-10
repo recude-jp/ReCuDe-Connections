@@ -37,6 +37,12 @@ export const ADMIN_ROUTES: Routes = [
               import('./features/admin-applications/admin-applications').then((m) => m.AdminApplications),
           },
           {
+            path: 'invite-requests',
+            canActivate: [rootScopeOnlyGuard],
+            loadComponent: () =>
+              import('./features/admin-invite-requests/admin-invite-requests').then((m) => m.AdminInviteRequests),
+          },
+          {
             path: 'profile-fields',
             loadComponent: () =>
               import('./features/admin-profile-fields/admin-profile-fields').then((m) => m.AdminProfileFields),

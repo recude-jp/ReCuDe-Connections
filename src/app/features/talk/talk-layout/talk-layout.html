@@ -1,3 +1,6 @@
+@if (e2eeState() !== 'ready') {
+  <app-e2ee-gate />
+} @else {
 <div class="talk" [class.has-detail]="hasDetail()">
   <aside class="sidebar" aria-label="トーク一覧">
     <div class="sidebar-header">
@@ -70,7 +73,7 @@
                 </span>
                 <span class="thread-body">
                   <span class="thread-title">{{ thread.title }}</span>
-                  <span class="thread-last">{{ thread.lastMessageText || 'まだメッセージはありません' }}</span>
+                  <span class="thread-last">{{ previewOf(thread) || 'まだメッセージはありません' }}</span>
                 </span>
                 <span class="thread-side">
                   <span class="thread-time">{{ formatTime(thread.lastMessageAt) }}</span>
@@ -102,7 +105,7 @@
                 </span>
                 <span class="thread-body">
                   <span class="thread-title">{{ thread.title }}</span>
-                  <span class="thread-last">{{ thread.lastMessageText || 'まだメッセージはありません' }}</span>
+                  <span class="thread-last">{{ previewOf(thread) || 'まだメッセージはありません' }}</span>
                 </span>
                 <span class="thread-side">
                   <span class="thread-time">{{ formatTime(thread.lastMessageAt) }}</span>
@@ -123,3 +126,4 @@
     <router-outlet />
   </section>
 </div>
+}

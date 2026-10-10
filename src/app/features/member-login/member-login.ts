@@ -1,6 +1,8 @@
-import { AfterViewInit, Component, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { FaIconComponent } from '@fortawesome/angular-fontawesome';
+import { faCommentSms, faEnvelope, faFingerprint } from '@fortawesome/free-solid-svg-icons';
 import { AuthService } from '../../core/services/auth.service';
 import { PublicBrandingService } from '../../core/services/public-branding.service';
 import { FaviconService } from '../../core/services/favicon.service';
@@ -8,20 +10,31 @@ import { Title } from '@angular/platform-browser';
 import { DEFAULT_SITE_TITLE } from '../../core/utils/branding';
 import { PasskeyService } from '../../core/services/passkey.service';
 import { PinService } from '../../core/services/pin.service';
+import { LoginChannel, LoginChannels, LoginService } from '../../core/services/login.service';
 import { PinInput } from '../../shared/pin-input/pin-input';
-import { toE164 } from '../../core/utils/phone';
-import { toErrorMessage, toPasskeyErrorMessage, toPhoneAuthErrorMessage } from '../../core/utils/errors';
+import { toErrorMessage, toPasskeyErrorMessage } from '../../core/utils/errors';
 import { environment } from '../../../environments/environment';
 
-type Step = 'phone' | 'otp' | 'pin';
+/**
+ * identifier: ログインIDの入力。channel: 認証コードの送り先(メール・SMS)の選択。otp: 認証コードの入力。
+ * pin: この端末のPINでのログイン。
+ */
+type Step = 'identifier' | 'channel' | 'otp' | 'pin';
 
+/** 認証コードでログインしたあと、トークに移る前に出すダイアログ(ログインIDの設定 → パスキーの登録)。 */
+type SetupStep = 'login-id' | 'passkey';
+
+/**
+ * 会員ログイン(/login)。ログインIDを入力し、この端末でそのIDのパスキーを使ったことがあればパスキーで、
+ * なければ登録されているメール・SMSに送る認証コードでログインする(SPEC 1章「ログイン方式の変更」)。
+ */
 @Component({
   selector: 'app-member-login',
-  imports: [FormsModule, PinInput],
+  imports: [FormsModule, PinInput, FaIconComponent, RouterLink],
   templateUrl: './member-login.html',
   styleUrl: './member-login.scss'
 })
-export class MemberLogin implements AfterViewInit {
+export class MemberLogin {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly publicBranding = inject(PublicBrandingService);
@@ -29,15 +42,27 @@ export class MemberLogin implements AfterViewInit {
   private readonly titleService = inject(Title);
   private readonly passkey = inject(PasskeyService);
   private readonly pin = inject(PinService);
+  private readonly login = inject(LoginService);
 
-  readonly step = signal<Step>('phone');
-  readonly phoneNumber = signal('');
+  readonly faEnvelope = faEnvelope;
+  readonly faCommentSms = faCommentSms;
+  readonly faFingerprint = faFingerprint;
+
+  readonly step = signal<Step>('identifier');
+  readonly identifier = signal('');
+  readonly channels = signal<LoginChannels>({ email: false, sms: false });
+  readonly sentChannel = signal<LoginChannel | null>(null);
   readonly otpCode = signal('');
   readonly pinCode = signal('');
   readonly loading = signal(false);
   readonly errorMessage = signal('');
-  readonly passkeySupported = signal(this.passkey.isSupported() && this.passkey.hasLocalPasskeyHint('member'));
+  /** 入力したIDのパスキーを試せるか(この端末でそのIDのパスキーを使ったことがある)。 */
+  readonly canTryPasskey = signal(false);
   readonly pinSupported = signal(this.pin.isLocalPinConfigured('member'));
+
+  readonly setupStep = signal<SetupStep | null>(null);
+  readonly newLoginId = signal('');
+  private readonly offerPasskey = signal(false);
 
   readonly siteTitle = signal<string | null>(null);
   readonly logoUrl = signal<string | null>(null);
@@ -56,52 +81,35 @@ export class MemberLogin implements AfterViewInit {
       .catch(() => this.siteTitle.set(DEFAULT_SITE_TITLE));
   }
 
-  ngAfterViewInit(): void {
-    this.auth.initRecaptcha('recaptcha-container');
-
-    // この端末にパスキーまたはPINの登録記録があれば、既知の端末とみなしてパスキーログインを自動的に試みる。
-    // パスキーが未登録(PINのみ設定済み)の場合は認証情報が見つからず自動的に失敗するので、エラーは出さず
-    // 通常の電話番号入力画面へ静かにフォールバックする。
-    if (this.passkeySupported() || this.pinSupported()) {
-      void this.signInWithPasskey(true);
+  /** ログインIDを入力して「次へ」。パスキーを使ったことがあれば先に試し、だめなら送り先の選択へ。 */
+  async submitIdentifier(): Promise<void> {
+    const identifier = this.identifier().trim();
+    if (!identifier) {
+      return;
     }
-  }
-
-  async sendOtp(): Promise<void> {
     this.errorMessage.set('');
     this.loading.set(true);
     try {
-      await this.auth.sendOtp(toE164(this.phoneNumber()));
-      this.step.set('otp');
+      this.channels.set(await this.login.start(identifier));
+      this.canTryPasskey.set(this.passkey.shouldTryPasskeyFor(identifier));
     } catch (err) {
-      this.errorMessage.set(toPhoneAuthErrorMessage(err));
+      this.errorMessage.set(toErrorMessage(err));
+      return;
     } finally {
       this.loading.set(false);
     }
+    this.step.set('channel');
+    if (this.canTryPasskey()) {
+      await this.signInWithPasskey();
+    }
   }
 
-  async confirmOtp(): Promise<void> {
+  async signInWithPasskey(): Promise<void> {
+    const identifier = this.identifier().trim();
     this.errorMessage.set('');
     this.loading.set(true);
     try {
-      await this.auth.confirmOtp(this.otpCode());
-      await this.auth.resolveMemberSession();
-      await this.router.navigate(['/talk']);
-    } catch (err) {
-      this.errorMessage.set(toPhoneAuthErrorMessage(err));
-    } finally {
-      this.loading.set(false);
-    }
-  }
-
-  /** auto=true は画面表示時の自動試行。ユーザー操作なしの失敗はエラー表示しない。 */
-  async signInWithPasskey(auto = false): Promise<void> {
-    if (!auto) {
-      this.errorMessage.set('');
-    }
-    this.loading.set(true);
-    try {
-      const { customToken, credentialId } = await this.passkey.login();
+      const { customToken, credentialId } = await this.passkey.login(identifier);
       await this.auth.signInWithToken(customToken);
       if (this.auth.currentSession?.kind !== 'member') {
         await this.auth.signOut();
@@ -109,14 +117,69 @@ export class MemberLogin implements AfterViewInit {
       }
       this.passkey.markLocalPasskeyHint('member', true);
       this.passkey.markLocalCredentialId('member', credentialId);
+      this.passkey.rememberPasskeyFor([identifier]);
       await this.router.navigate(['/talk']);
     } catch (err) {
-      if (!auto) {
-        this.errorMessage.set(toPasskeyErrorMessage(err));
-      }
+      // 送り先の選択の画面のまま、認証コードでもログインできるようにする。
+      this.errorMessage.set(toPasskeyErrorMessage(err));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async sendCode(channel: LoginChannel): Promise<void> {
+    this.errorMessage.set('');
+    this.loading.set(true);
+    try {
+      await this.login.sendCode(this.identifier().trim(), channel);
+      this.sentChannel.set(channel);
+      this.otpCode.set('');
+      this.step.set('otp');
+    } catch (err) {
+      this.errorMessage.set(toErrorMessage(err));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async confirmOtp(): Promise<void> {
+    const identifier = this.identifier().trim();
+    this.errorMessage.set('');
+    this.loading.set(true);
+    try {
+      const { customToken, needsLoginId } = await this.login.verifyCode(identifier, this.otpCode());
+      await this.auth.signInWithToken(customToken);
+      if (this.auth.currentSession?.kind !== 'member') {
+        await this.auth.signOut();
+        throw new Error('ログインに失敗しました。');
+      }
+      // この端末にパスキーが無ければ、トークに移る前に登録を勧める。
+      this.offerPasskey.set(this.passkey.isSupported() && !this.passkey.shouldTryPasskeyFor(identifier));
+      if (needsLoginId) {
+        this.setupStep.set('login-id');
+      } else if (this.offerPasskey()) {
+        this.setupStep.set('passkey');
+      } else {
+        await this.router.navigate(['/talk']);
+      }
+    } catch (err) {
+      this.errorMessage.set(toErrorMessage(err));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  /** 認証コードの入力から、送り先の選択に戻る(送り直す・別の送り先にする)。 */
+  backToChannels(): void {
+    this.errorMessage.set('');
+    this.step.set('channel');
+  }
+
+  /** ログインIDの入力に戻る。 */
+  changeIdentifier(): void {
+    this.errorMessage.set('');
+    this.otpCode.set('');
+    this.step.set('identifier');
   }
 
   startPinLogin(): void {
@@ -140,5 +203,63 @@ export class MemberLogin implements AfterViewInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** ダイアログ: ログインIDが未設定の会員(電話番号でログインした人)に、ログインIDを決めてもらう。 */
+  async saveLoginId(): Promise<void> {
+    const loginId = this.newLoginId().trim();
+    if (!loginId) {
+      return;
+    }
+    this.errorMessage.set('');
+    this.loading.set(true);
+    try {
+      const saved = await this.login.setLoginId(loginId);
+      // 次回からは、このログインIDを入力すればこの端末のパスキーを試せるようにする。
+      if (!this.offerPasskey()) {
+        this.passkey.rememberPasskeyFor([saved]);
+      }
+      this.identifier.set(saved);
+      await this.afterLoginIdStep();
+    } catch (err) {
+      this.errorMessage.set(toErrorMessage(err));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async skipLoginId(): Promise<void> {
+    this.errorMessage.set('');
+    await this.afterLoginIdStep();
+  }
+
+  private async afterLoginIdStep(): Promise<void> {
+    if (this.offerPasskey()) {
+      this.setupStep.set('passkey');
+    } else {
+      await this.finishSetup();
+    }
+  }
+
+  /** ダイアログ: この端末にパスキーを登録して、トークへ。 */
+  async registerPasskey(): Promise<void> {
+    this.errorMessage.set('');
+    this.loading.set(true);
+    try {
+      await this.passkey.register('member');
+      this.passkey.markLocalPasskeyHint('member', true);
+      this.passkey.rememberPasskeyFor([this.identifier().trim()]);
+      await this.finishSetup();
+    } catch (err) {
+      this.errorMessage.set(toPasskeyErrorMessage(err));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async finishSetup(): Promise<void> {
+    this.errorMessage.set('');
+    this.setupStep.set(null);
+    await this.router.navigate(['/talk']);
   }
 }

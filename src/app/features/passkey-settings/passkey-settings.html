@@ -1,5 +1,9 @@
 <div class="list-page">
-  <p class="placeholder intro">この端末で、電話番号の認証コードを使わずにログインするための設定です。</p>
+  <app-login-account-settings />
+  <app-e2ee-settings />
+
+  <h2>パスキー・PIN</h2>
+  <p class="placeholder intro">この端末で、認証コードを使わずにログインするための設定です。</p>
 
   @if (!passkeySupported()) {
     <p class="placeholder">このブラウザ・端末はパスキーに対応していません。</p>

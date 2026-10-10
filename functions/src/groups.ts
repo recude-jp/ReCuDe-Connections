@@ -354,6 +354,9 @@ export const leaveGroup = onCall(async (request) => {
     tx.update(roomRef, {
       memberIds: FieldValue.arrayRemove(identity.memberId),
       memberCount: FieldValue.increment(-1),
+      // ルームの鍵の世代を進める。新しい世代の鍵は残ったメンバーの端末が作り、抜けた人には配らない
+      // (抜けた人は、その後の会話を読めない。SECURITY-DEVELOPMENT.md 6-1)。
+      keyEpoch: FieldValue.increment(1),
     });
     tx.delete(roomRef.collection('members').doc(identity.memberId));
     tx.delete(db().doc(threadPath(identity.tenantId, identity.memberId, roomId)));

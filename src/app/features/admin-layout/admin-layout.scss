@@ -140,3 +140,12 @@
     box-shadow: none;
   }
 }
+
+// ほかの対象の審査待ちの件数のバッジを、ボタンの左上に重ねる。
+.scope-button {
+  position: relative;
+}
+
+.scope-list button app-count-badge {
+  margin-left: 0;
+}

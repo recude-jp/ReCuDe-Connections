@@ -63,8 +63,23 @@ export interface ProfileField {
  * 本人と管理者だけが読める。書き込みは Cloud Functions だけ。
  */
 export interface MemberPrivateProfile {
+  /** すべての項目の値(公開にした項目の値は、会員データの profile にも写る)。 */
   values: ProfileValues;
+  /** 項目ごとの公開範囲(本人が選ぶ。未設定は非公開)。 */
+  visibility?: Record<string, ProfileVisibility>;
   updatedAt: Timestamp | FieldValue;
+}
+
+/** プロフィールの項目の公開範囲。public: 同じコミュニティの会員に見せる。private: 本人と管理者だけ。 */
+export type ProfileVisibility = 'public' | 'private';
+
+/** ログインの設定(members/[memberId]/private/login)。本人と管理者だけが読める。 */
+export interface MemberLoginSettings {
+  loginId?: string;
+  email?: string;
+  emailLogin?: boolean;
+  phoneNumber?: string;
+  adminAccessConsentAt?: Timestamp | FieldValue;
 }
 
 /** 会員が入力したプロフィールの値(項目ID → 値。tags は配列)。 */
@@ -157,7 +172,8 @@ export interface MembershipApplication {
 }
 
 export interface Member {
-  phoneNumber: string;
+  /** 旧方式: 電話番号。private/login に移した(移行前のデータだけが持つ。SECURITY-DEVELOPMENT.md 7章)。 */
+  phoneNumber?: string;
   displayName: string;
   /** プロフィール画像(Storage のパス。tenants/[tenantId]/members/[memberId]/photo/...)。 */
   photoPath?: string;
@@ -256,6 +272,8 @@ export type RoomType = 'direct' | 'group';
 export interface Room {
   type: RoomType;
   memberIds: string[];
+  /** ルームの鍵の世代(グループからメンバーが抜けると進む。未設定は0。SECURITY-DEVELOPMENT.md 6-1)。 */
+  keyEpoch?: number;
   memberCount: number;
   name?: string;
   description?: string;
@@ -361,6 +379,26 @@ export interface MessageMedia {
   width: number;
   height: number;
   size: number;
+  /**
+   * 暗号化した画像のとき、ファイルを暗号化したルームの鍵の世代(ファイルは original.bin・thumb.bin)。
+   * 未設定は暗号化を入れる前の画像(original.jpg・thumb.jpg をそのまま表示する)。
+   */
+  epoch?: number;
+}
+
+/** メッセージの暗号文(SECURITY-DEVELOPMENT.md 6-2)。ルームの鍵で暗号化した MessageContent。 */
+export interface EncryptedPayload {
+  v: number;
+  epoch: number;
+  iv: string;
+  ct: string;
+}
+
+/** 暗号化するメッセージの中身。 */
+export interface MessageContent {
+  text?: string;
+  stamp?: StampRef;
+  media?: MessageMedia;
 }
 
 /**
@@ -370,6 +408,9 @@ export interface MessageMedia {
 export interface RoomMessage {
   senderId: string;
   type: RoomMessageType;
+  /** 暗号化したメッセージの中身(本文・スタンプ・画像の情報)。暗号化を入れる前のメッセージには無い。 */
+  enc?: EncryptedPayload;
+  /** 暗号化を入れる前のメッセージの中身(平文のまま残す)。 */
   text?: string;
   stamp?: StampRef | string;
   media?: MessageMedia;
@@ -385,6 +426,8 @@ export interface Thread {
   title: string;
   otherMemberId?: string;
   lastMessageText: string;
+  /** 最新メッセージが暗号化されているとき、その暗号文(端末で復号してプレビューに出す)。 */
+  lastMessageEnc?: EncryptedPayload & { messageId: string; senderId: string };
   lastSenderId: string | null;
   lastMessageAt: Timestamp | FieldValue | null;
   lastActivityAt: Timestamp | FieldValue;
@@ -398,4 +441,32 @@ export interface GroupInvitationNotice {
   invitedBy: string;
   invitedByName: string;
   createdAt: Timestamp | FieldValue;
+}
+
+/** 招待申請の状態(functions/src/models.ts と揃える)。 */
+export type InviteRequestStatus = 'pending' | 'invited' | 'declined';
+
+/** 招待申請(tenants/[tenantId]/inviteRequests/[requestId])。ルートの管理者だけが読める。 */
+export interface InviteRequest {
+  name: string;
+  phoneNumber: string;
+  email?: string;
+  hometown: string;
+  highSchool?: string;
+  juniorHighSchool?: string;
+  kenjinkaiMember: boolean;
+  alumniMember: boolean;
+  alumniCommunityId?: string;
+  alumniOtherName?: string;
+  referrer?: string;
+  note?: string;
+  status: InviteRequestStatus;
+  alreadyJoined: boolean;
+  alreadyInvited: boolean;
+  createdAt: Timestamp | FieldValue;
+  handledBy?: string;
+  handledAt?: Timestamp | FieldValue;
+  inviteId?: string;
+  invitedCommunityId?: string;
+  declineReason?: string;
 }

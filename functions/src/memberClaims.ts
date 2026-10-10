@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import type { Member } from './models';
+import { getMemberPhone } from './memberPrivate';
 
 /** 会員のFirebase Authカスタムクレーム。Firestoreルール・Cloud Functions・クライアントの画面出し分けで使う。 */
 export function buildMemberClaims(tenantId: string, memberId: string, member: Member): Record<string, unknown> {
@@ -33,9 +34,13 @@ export async function syncMemberClaims(
   member: Member,
   options: { revokeTokens?: boolean } = {},
 ): Promise<void> {
+  const phoneNumber = await getMemberPhone({ tenantId, memberId }, member);
+  if (!phoneNumber) {
+    return;
+  }
   let user: admin.auth.UserRecord;
   try {
-    user = await admin.auth().getUserByPhoneNumber(member.phoneNumber);
+    user = await admin.auth().getUserByPhoneNumber(phoneNumber);
   } catch (err) {
     if ((err as { code?: string }).code === 'auth/user-not-found') {
       return;

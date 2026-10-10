@@ -10,6 +10,7 @@ import { buildMemberClaims } from './memberClaims';
 import { sanitizeDisplayName } from './profile';
 import { writeDirectRoom } from './rooms';
 import { sendEmail } from './mail';
+import { loginSettingsPath, sanitizeLoginId } from './loginAccount';
 import { appBaseUrl, sendSms, twilioSecrets } from './twilio';
 import type {
   Community,
@@ -18,7 +19,9 @@ import type {
   InviteCode,
   InviteIndexEntry,
   InviteTarget,
+  LoginIdIndexEntry,
   Member,
+  MemberLoginSettings,
   MembershipApplication,
   PhoneIndexEntry,
   Tenant,
@@ -156,9 +159,43 @@ const PHONE_PATTERN = /^\+[1-9]\d{7,14}$/;
 export const createInvite = onCall({ secrets: twilioSecrets }, async (request) => {
   const data = (request.data ?? {}) as { name?: unknown; phoneNumber?: unknown; email?: unknown; target?: unknown };
   const { identity, inviter, communityId, community } = await resolveTarget(request.auth, data.target);
-  const name = sanitizeDisplayName(data.name);
-  const phoneNumber = typeof data.phoneNumber === 'string' ? data.phoneNumber.trim() : '';
-  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
+  const inviteId = await issueInvite({
+    tenantId: identity.tenantId,
+    inviterId: identity.memberId,
+    inviter,
+    communityId,
+    community,
+    name: data.name,
+    phoneNumber: data.phoneNumber,
+    email: data.email,
+  });
+  return { inviteId };
+});
+
+export interface IssueInviteInput {
+  tenantId: string;
+  inviterId: string;
+  inviter: Member;
+  communityId?: string;
+  community?: Community;
+  name: unknown;
+  phoneNumber: unknown;
+  email: unknown;
+  /** 招待申請(inviteRequests)から事務局が送るとき、その申請のID。 */
+  requestId?: string;
+  /** 電話番号とメールアドレスの両方があるとき、どちらに送るか(既定は電話番号＝SMS)。 */
+  sendBy?: 'sms' | 'email';
+}
+
+/**
+ * 招待を作って、招待リンクを電話番号(SMS)かメールアドレスに送る。招待の送付(createInvite)と、
+ * 事務局が招待申請から送るとき(inviteRequests.ts)の共通の処理。作った招待のIDを返す。
+ */
+export async function issueInvite(input: IssueInviteInput): Promise<string> {
+  const { tenantId, inviterId, inviter, communityId, community } = input;
+  const name = sanitizeDisplayName(input.name);
+  const phoneNumber = typeof input.phoneNumber === 'string' ? input.phoneNumber.trim() : '';
+  const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
   if (!phoneNumber && !email) {
     throw new HttpsError('invalid-argument', '電話番号かメールアドレスを入力してください。');
   }
@@ -179,9 +216,7 @@ export const createInvite = onCall({ secrets: twilioSecrets }, async (request) =
     const phoneIndex = phoneIndexSnap.data() as PhoneIndexEntry | undefined;
     if (phoneIndex) {
       const existing =
-        communityId && phoneIndex.tenantId === identity.tenantId
-          ? await getMember(identity.tenantId, phoneIndex.memberId)
-          : undefined;
+        communityId && phoneIndex.tenantId === tenantId ? await getMember(tenantId, phoneIndex.memberId) : undefined;
       if (!existing) {
         throw new HttpsError('already-exists', 'この電話番号の方は、すでに参加しています。');
       }
@@ -195,18 +230,19 @@ export const createInvite = onCall({ secrets: twilioSecrets }, async (request) =
     }
   }
 
-  const tenant = (await db().doc(`tenants/${identity.tenantId}`).get()).data() as Tenant | undefined;
+  const tenant = (await db().doc(`tenants/${tenantId}`).get()).data() as Tenant | undefined;
   const serviceName = tenant?.branding?.siteTitle || tenant?.name || 'ReCuDe Connections';
 
   const code = newCode();
-  const inviteRef = db().collection(`tenants/${identity.tenantId}/invites`).doc();
+  const inviteRef = db().collection(`tenants/${tenantId}/invites`).doc();
   const invite: Invite = {
     name,
     ...(phoneNumber ? { phoneNumber } : {}),
     ...(email ? { email } : {}),
-    recommenderId: identity.memberId,
+    recommenderId: inviterId,
     via: 'invite',
     ...(communityId ? { target: { type: 'community', communityId } } : {}),
+    ...(input.requestId ? { requestId: input.requestId } : {}),
     code,
     status: 'invited',
     createdAt: FieldValue.serverTimestamp(),
@@ -214,8 +250,8 @@ export const createInvite = onCall({ secrets: twilioSecrets }, async (request) =
   const batch = db().batch();
   batch.set(inviteRef, invite);
   batch.set(db().doc(`inviteCodes/${code}`), {
-    tenantId: identity.tenantId,
-    inviterId: identity.memberId,
+    tenantId,
+    inviterId,
     kind: 'invite',
     inviteId: inviteRef.id,
     ...(communityId ? { communityId } : {}),
@@ -223,21 +259,22 @@ export const createInvite = onCall({ secrets: twilioSecrets }, async (request) =
     createdAt: FieldValue.serverTimestamp(),
   } satisfies InviteCode);
   if (phoneNumber && indexPhone) {
-    batch.set(db().doc(`inviteIndex/${phoneNumber}`), { tenantId: identity.tenantId, inviteId: inviteRef.id } satisfies InviteIndexEntry);
+    batch.set(db().doc(`inviteIndex/${phoneNumber}`), { tenantId, inviteId: inviteRef.id } satisfies InviteIndexEntry);
   }
   await batch.commit();
 
   const inviterName = inviter.displayName;
   const place = community ? `${serviceName}の「${community.name}」` : serviceName;
-  const message = `${name}さん、${inviterName}さんから${place}に招待されました。次のリンクから参加できます。\n${joinUrl(code)}`;
-  if (phoneNumber) {
+  const message = input.requestId
+    ? `${name}さん、${place}への招待のご申請ありがとうございます。事務局（${inviterName}）から招待をお送りします。次のリンクから参加できます。\n${joinUrl(code)}`
+    : `${name}さん、${inviterName}さんから${place}に招待されました。次のリンクから参加できます。\n${joinUrl(code)}`;
+  if (phoneNumber && !(input.sendBy === 'email' && email)) {
     await sendSms(phoneNumber, message);
   } else {
-    await sendEmail(email, `${inviterName}さんから${place}への招待`, message);
+    await sendEmail(email, input.requestId ? `${place}への招待` : `${inviterName}さんから${place}への招待`, message);
   }
-
-  return { inviteId: inviteRef.id };
-});
+  return inviteRef.id;
+}
 
 interface ResolvedInvitation {
   tenantId: string;
@@ -467,7 +504,10 @@ function assertInviterCanInvite(inviter: Member | undefined, communityId: string
   const ok =
     !!inviter &&
     inviter.isActive &&
-    (communityId ? (inviter.communityIds ?? []).includes(communityId) : isFullMember(inviter));
+    // ルートの管理者(事務局)は、招待申請から、どの連携コミュニティへも招待できる。
+    (communityId
+      ? (inviter.communityIds ?? []).includes(communityId) || inviter.roles?.admin === true
+      : isFullMember(inviter));
   if (!ok) {
     throw new HttpsError('failed-precondition', '招待した方のアカウントが無効のため、参加できません。');
   }
@@ -546,10 +586,19 @@ export const joinAsGuest = onCall(async (request) => {
   if (!phoneNumber) {
     throw new HttpsError('failed-precondition', '電話番号でのログインが必要です。');
   }
-  const { code: rawCode, displayName: rawName, agreedToTerms } = (request.data ?? {}) as {
+  const {
+    code: rawCode,
+    displayName: rawName,
+    agreedToTerms,
+    loginId: rawLoginId,
+    agreedToAdminAccess,
+  } = (request.data ?? {}) as {
     code?: unknown;
     displayName?: unknown;
     agreedToTerms?: unknown;
+    loginId?: unknown;
+    /** ログイン情報(電話番号・ログインID・メールアドレス)を管理者が見られることへの同意(新しく参加する人だけ)。 */
+    agreedToAdminAccess?: unknown;
   };
   const code = typeof rawCode === 'string' && rawCode ? rawCode : undefined;
 
@@ -581,6 +630,13 @@ export const joinAsGuest = onCall(async (request) => {
   }
 
   const displayName = sanitizeDisplayName(rawName);
+  const loginId = sanitizeLoginId(rawLoginId);
+  if (agreedToAdminAccess !== true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'ログイン情報を事務局（管理者）が会員の管理のために見られることに、同意してください。',
+    );
+  }
   const resolved = await resolveInvitation(code, phoneNumber);
   if (resolved.invite?.phoneNumber && resolved.invite.phoneNumber !== phoneNumber) {
     throw new HttpsError(
@@ -597,8 +653,8 @@ export const joinAsGuest = onCall(async (request) => {
   /** 連携コミュニティのメンバーになるか(承認が必要なときは、承認されるまでゲスト)。 */
   const joinsCommunity = !!communityId && !pending;
   const memberRef = db().collection(`tenants/${tenantId}/members`).doc();
+  // 電話番号は、同じテナントの会員が読める会員データには置かず、private/login に置く(SECURITY-DEVELOPMENT.md 7章)。
   const member: Member = {
-    phoneNumber,
     displayName,
     profile: {},
     positionLevel: '一般会員',
@@ -615,6 +671,18 @@ export const joinAsGuest = onCall(async (request) => {
   const batch = db().batch();
   batch.set(memberRef, member);
   batch.set(db().doc(`phoneIndex/${phoneNumber}`), { tenantId, memberId: memberRef.id } satisfies PhoneIndexEntry);
+  // ログインIDは create で置き、ほかの会員が使っていればバッチごと失敗させる(重複の確認と登録を同時に行う)。
+  batch.create(db().doc(`loginIdIndex/${loginId}`), {
+    tenantId,
+    memberId: memberRef.id,
+    kind: 'loginId',
+  } satisfies LoginIdIndexEntry);
+  batch.set(db().doc(loginSettingsPath({ tenantId, memberId: memberRef.id })), {
+    loginId,
+    phoneNumber,
+    adminAccessConsentAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  } satisfies MemberLoginSettings);
   await connectWithInviter(
     batch,
     tenantId,
@@ -623,7 +691,15 @@ export const joinAsGuest = onCall(async (request) => {
     true,
   );
   await recordInvitationUse(batch, resolved, { id: memberRef.id, displayName, phoneNumber });
-  await batch.commit();
+  try {
+    await batch.commit();
+  } catch (err) {
+    // ALREADY_EXISTS(6): ログインIDの索引がすでにある。
+    if ((err as { code?: unknown }).code === 6) {
+      throw new HttpsError('already-exists', 'このログインIDはすでに使われています。別のIDにしてください。');
+    }
+    throw err;
+  }
 
   await admin.auth().setCustomUserClaims(request.auth.uid, buildMemberClaims(tenantId, memberRef.id, member));
   if (joinsCommunity) {

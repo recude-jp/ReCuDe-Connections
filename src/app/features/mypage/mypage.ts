@@ -10,7 +10,7 @@ import { SetupPromptBanner } from '../../shared/setup-prompt-banner/setup-prompt
 import { ProfileForm } from '../../shared/profile-form/profile-form';
 import { MemberAvatar } from '../../shared/member-avatar/member-avatar';
 import { MyPageCommunities } from '../mypage-communities/mypage-communities';
-import type { Member, ProfileValues, Tenant } from '../../core/models/firestore.models';
+import type { Member, ProfileField, ProfileValues, ProfileVisibility, Tenant } from '../../core/models/firestore.models';
 import { formatProfileValue, missingRequiredFields, visibleProfileFields } from '../../core/utils/profile-fields';
 import { prepareAvatarImage } from '../../core/utils/image';
 import { toErrorMessage } from '../../core/utils/errors';
@@ -73,18 +73,31 @@ export class MyPage {
     { initialValue: undefined as Member | undefined },
   );
 
-  /** 非公開のプロフィールの値(生年月など。本人だけが読める)。 */
-  readonly privateValues = toSignal(
+  /** private/profile(すべての値と、項目ごとの公開範囲。本人と管理者だけが読める)。 */
+  private readonly privateProfile = toSignal(
     this.auth.session$.pipe(
       switchMap((session) =>
-        session?.kind === 'member' ? this.memberService.getPrivateProfile(session.tenantId, session.memberId) : of({}),
+        session?.kind === 'member'
+          ? this.memberService.getPrivateProfileDoc(session.tenantId, session.memberId)
+          : of({ values: {} as ProfileValues, visibility: {} as Record<string, ProfileVisibility> }),
       ),
     ),
-    { initialValue: {} as ProfileValues },
+    { initialValue: { values: {} as ProfileValues, visibility: {} as Record<string, ProfileVisibility> } },
   );
 
   /** 表示する値(公開の値と、自分だけに見える非公開の値)。 */
-  readonly allValues = computed<ProfileValues>(() => ({ ...(this.member()?.profile ?? {}), ...this.privateValues() }));
+  readonly allValues = computed<ProfileValues>(() => ({
+    ...(this.member()?.profile ?? {}),
+    ...this.privateProfile().values,
+  }));
+
+  /** 項目の公開範囲(管理者が非公開に決めた項目は常に非公開。未設定は undefined)。 */
+  visibilityOf(field: ProfileField): ProfileVisibility | undefined {
+    return field.private ? 'private' : this.privateProfile().visibility[field.id];
+  }
+
+  /** 公開範囲が未設定の項目(未設定は公開されない。本人に設定を促す)。 */
+  readonly unsetVisibilityFields = computed(() => this.fields().filter((field) => !this.visibilityOf(field)));
 
   readonly isGuest = computed(() => !!this.memberSession()?.isGuest);
 
@@ -98,6 +111,7 @@ export class MyPage {
   /** 写真が無いときに丸いアイコンに出す文字(2文字まで。空なら名前の最初と最後の1文字)。 */
   readonly draftAvatarText = signal('');
   readonly draftProfile = signal<ProfileValues>({});
+  readonly draftVisibility = signal<Record<string, ProfileVisibility>>({});
   readonly options = signal<Record<string, string[]>>({});
   /** 新しく選んだ画像(null = 画像を外す、undefined = 変えない)。 */
   readonly draftPhoto = signal<Blob | null | undefined>(undefined);
@@ -132,6 +146,7 @@ export class MyPage {
     this.draftName.set(member.displayName);
     this.draftAvatarText.set(member.avatarText ?? '');
     this.draftProfile.set({ ...this.allValues() });
+    this.draftVisibility.set({ ...this.privateProfile().visibility });
     this.draftPhoto.set(undefined);
     this.editing.set(true);
 
@@ -192,6 +207,7 @@ export class MyPage {
         this.draftProfile(),
         photoPath,
         this.draftAvatarText(),
+        this.isGuest() ? undefined : this.draftVisibility(),
       );
       this.editing.set(false);
       this.successMessage.set('プロフィールを保存しました。');

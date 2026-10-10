@@ -94,7 +94,20 @@ export GCLOUD_PROJECT=default-41833
 npm --prefix functions run migrate:profile -- --yes           # テナントごとのプロフィール項目への移行
 npm --prefix functions run migrate:community-admins -- --yes  # 連携コミュニティの管理者の反映
 npm --prefix functions run migrate:rooms -- --yes             # 1対1チャットのルーム方式への移行
+npm --prefix functions run migrate:privacy -- --yes           # 電話番号を private/login へ移し、プロフィールを非公開(未設定)にする
 ```
+
+`migrate:privacy` のあとは、会員のプロフィールはいったんすべて非公開になる（公開・非公開は、会員がマイページで項目ごとに選ぶ。SECURITY-DEVELOPMENT.md 7章）。会員に、マイページで公開範囲を選ぶよう案内する。
+
+### A-4b. Storage の CORS 設定（一度だけ）
+
+トークの画像は暗号化して Storage に置き、端末で取得して復号する（SECURITY-DEVELOPMENT.md 6-2）。ブラウザから Storage のファイルの中身を読むには、バケットに CORS の設定が必要（Emulator では不要）。[`storage-cors.json`](storage-cors.json) の `origin` にアプリを開くドメインを入れて（独自ドメインを使う場合は追加する）、一度だけ実行する。
+
+```bash
+gcloud storage buckets update gs://<storageBucket> --cors-file=storage-cors.json
+```
+
+`<storageBucket>` は `src/environments/environment.prod.ts` の `storageBucket`（例: `default-41833.firebasestorage.app`）。設定していないと、暗号化した画像が「表示できません」になる。
 
 各スクリプトの内容は [`DEVELOPMENT.md`](DEVELOPMENT.md) の同名の節を参照。
 

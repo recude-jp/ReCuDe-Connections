@@ -27,7 +27,7 @@
       @if (hasOlder()) {
         <button type="button" class="load-older" (click)="loadOlder()">以前のメッセージを読み込む</button>
       }
-      @for (message of messages(); track message.id; let i = $index) {
+      @for (message of displayMessages(); track message.id; let i = $index) {
         <div class="message-row" [class.mine]="isMine(message)">
           <!-- 自分以外のメッセージの頭に、送った人のプロフィール画像(未登録なら名前の最初の1文字)を出す。押すとプロフィール。 -->
           @if (!isMine(message)) {
@@ -53,8 +53,16 @@
             <div class="bubble-line">
               @if (message.status === 'removed') {
                 <span class="bubble removed">（削除されたメッセージ）</span>
+              } @else if (message.decrypt === 'pending') {
+                <span class="bubble removed">🔒 …</span>
+              } @else if (message.decrypt === 'no-key') {
+                <span class="bubble removed" title="ほかのメンバーがトークを開くと、読めるようになります">
+                  🔒 暗号鍵の受け取りを待っています
+                </span>
+              } @else if (message.decrypt === 'error') {
+                <span class="bubble removed">🔒 このメッセージは読めません</span>
               } @else if (message.type === 'image' && message.media) {
-                <app-message-image [media]="message.media" (open)="lightboxUrl.set($event)" />
+                <app-message-image [media]="message.media" [roomId]="roomId()" (open)="lightboxUrl.set($event)" />
               } @else if (message.type === 'stamp') {
                 @if (isLegacyStamp(message)) {
                   <span class="bubble legacy-stamp">{{ message.stamp }}</span>

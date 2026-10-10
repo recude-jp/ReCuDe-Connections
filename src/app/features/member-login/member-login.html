@@ -7,29 +7,65 @@
       <div class="subtitle"> 会員ログイン</div>
   }
 
-  @if (step() === 'phone') {
-    <form (ngSubmit)="sendOtp()">
-      <label for="phone">電話番号</label>
+  @if (step() === 'identifier') {
+    <form (ngSubmit)="submitIdentifier()">
+      <label for="identifier">ログインID</label>
       <input
-        id="phone"
-        name="phone"
-        type="tel"
-        [ngModel]="phoneNumber()"
-        (ngModelChange)="phoneNumber.set($event)"
+        id="identifier"
+        name="identifier"
+        type="text"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+        [ngModel]="identifier()"
+        (ngModelChange)="identifier.set($event)"
         required
       />
-      <button type="submit" [disabled]="loading() || !phoneNumber()">認証コードを送信</button>
+      <p class="hint">
+        メールアドレスをログインIDとして設定している方は、メールアドレスでも入力できます。
+        ログインIDが未設定の方は、電話番号を入力してください。
+      </p>
+      <button type="submit" [disabled]="loading() || !identifier().trim()">次へ</button>
     </form>
 
-    @if (passkeySupported()) {
-      <button type="button" [disabled]="loading()" (click)="signInWithPasskey()">パスキーでログイン</button>
-    }
     @if (pinSupported()) {
       <button type="button" [disabled]="loading()" (click)="startPinLogin()">PINでログイン</button>
     }
   }
 
+  @if (step() === 'channel') {
+    <p class="current-id">
+      <span>{{ identifier().trim() }}</span>
+      <button type="button" class="link-button" [disabled]="loading()" (click)="changeIdentifier()">変更</button>
+    </p>
+
+    @if (canTryPasskey()) {
+      <button type="button" class="passkey-button" [disabled]="loading()" (click)="signInWithPasskey()">
+        <fa-icon [icon]="faFingerprint" /> パスキーでログイン
+      </button>
+    }
+
+    <p class="channel-label">認証コードの送り先を選んでください</p>
+    <div class="channels">
+      @if (channels().email) {
+        <button type="button" class="channel" [disabled]="loading()" (click)="sendCode('email')">
+          <fa-icon [icon]="faEnvelope" size="2x" />
+          <span>メール</span>
+        </button>
+      }
+      @if (channels().sms) {
+        <button type="button" class="channel" [disabled]="loading()" (click)="sendCode('sms')">
+          <fa-icon [icon]="faCommentSms" size="2x" />
+          <span>SMS</span>
+        </button>
+      }
+    </div>
+  }
+
   @if (step() === 'otp') {
+    <p class="sent-message">
+      {{ sentChannel() === 'email' ? 'メール' : 'SMS' }}で認証コードを送信しました。届いた6桁のコードを入力してください。
+    </p>
     <form (ngSubmit)="confirmOtp()">
       <label>認証コード</label>
       <app-pin-input
@@ -40,6 +76,11 @@
       />
       <button type="submit" [disabled]="loading() || otpCode().length !== 6">ログイン</button>
     </form>
+    <p class="resend">
+      <button type="button" class="link-button" [disabled]="loading()" (click)="backToChannels()">
+        認証コードを送り直す
+      </button>
+    </p>
   }
 
   @if (step() === 'pin') {
@@ -53,11 +94,57 @@
       />
       <button type="submit" [disabled]="loading() || pinCode().length !== 6">ログイン</button>
     </form>
+    <p class="resend">
+      <button type="button" class="link-button" [disabled]="loading()" (click)="changeIdentifier()">
+        ログインIDでログインする
+      </button>
+    </p>
   }
 
-  @if (errorMessage()) {
+  @if (errorMessage() && !setupStep()) {
     <p class="error">{{ errorMessage() }}</p>
   }
 
-  <div id="recaptcha-container"></div>
+  <p class="about-link"><a routerLink="/about">{{ siteTitle() || 'サービス' }}について</a></p>
 </div>
+
+@if (setupStep(); as setup) {
+  <div class="backdrop"></div>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+    @if (setup === 'login-id') {
+      <h2 id="setup-title">ログインIDを設定してください</h2>
+      <p>次回からは、ログインIDを入力してログインします。</p>
+      <form (ngSubmit)="saveLoginId()">
+        <label for="newLoginId">ログインID</label>
+        <input
+          id="newLoginId"
+          name="newLoginId"
+          type="text"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          maxlength="30"
+          [ngModel]="newLoginId()"
+          (ngModelChange)="newLoginId.set($event)"
+        />
+        <p class="hint">半角の英字・数字・「.」「_」「-」で4〜30文字（英字を1文字以上含めてください）</p>
+        <button type="submit" [disabled]="loading() || !newLoginId().trim()">設定する</button>
+      </form>
+      <button type="button" class="link-button skip" [disabled]="loading()" (click)="skipLoginId()">
+        あとで設定する
+      </button>
+    } @else {
+      <h2 id="setup-title"><fa-icon [icon]="faFingerprint" /> パスキーを登録しますか？</h2>
+      <p>
+        この端末にパスキーを登録すると、次回からは認証コードを待たずに、指紋認証・顔認証などでログインできます。
+      </p>
+      <button type="button" [disabled]="loading()" (click)="registerPasskey()">パスキーを登録する</button>
+      <button type="button" class="link-button skip" [disabled]="loading()" (click)="finishSetup()">
+        スキップ
+      </button>
+    }
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+  </section>
+}

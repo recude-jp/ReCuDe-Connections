@@ -14,6 +14,7 @@
             <app-community-logo [name]="current.name" [logoUrl]="current.logoUrl" [text]="current.logoText" [size]="24" [nativeTitle]="false" />
             <span class="scope-name">{{ current.name }}</span>
             <span class="caret" aria-hidden="true">▾</span>
+            <app-count-badge [count]="otherScopesPending()" label="ほかのコミュニティの審査待ちの申請" />
           </button>
           @if (menuOpen()) {
             <div class="backdrop" (click)="menuOpen.set(false)"></div>
@@ -29,6 +30,7 @@
                   >
                     <app-community-logo [name]="option.name" [logoUrl]="option.logoUrl" [text]="option.logoText" [size]="24" [nativeTitle]="false" />
                     <span class="scope-name">{{ option.name }}</span>
+                    <app-count-badge [count]="pendingFor(option.key)" label="審査待ちの申請" [inline]="true" />
                     <span class="kind">{{ option.isCommunity ? '連携コミュニティ' : 'ルート' }}</span>
                   </button>
                 </li>
@@ -46,7 +48,10 @@
   </div>
   <nav class="admin-menu" aria-label="管理メニュー">
     @for (tab of tabs(); track tab.path) {
-      <a [routerLink]="scopes.link(tab.path)" routerLinkActive="active" ariaCurrentWhenActive="page">{{ tab.label }}</a>
+      <a [routerLink]="scopes.link(tab.path)" routerLinkActive="active" ariaCurrentWhenActive="page">
+        {{ tab.label }}
+        <app-count-badge [count]="tabBadge(tab.path)" label="審査待ちの申請" [inline]="true" />
+      </a>
     }
   </nav>
   @if (scopes.isCommunity() && scopes.communities() !== undefined && !scopes.community()) {
