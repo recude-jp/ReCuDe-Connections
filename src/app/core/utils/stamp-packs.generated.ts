@@ -44,7 +44,7 @@ export const STAMP_PACK_DATA: StampPack[] = /* BEGIN DATA */ [
   {
     "packId": "lumi",
     "name": "ルミ",
-    "version": 2,
+    "version": 3,
     "stamps": [
       {
         "id": "hajimemashite",

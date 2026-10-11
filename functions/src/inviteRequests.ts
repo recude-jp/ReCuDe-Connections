@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'crypto';
 import { requireAdmin } from './callerIdentity';
 import { issueInvite } from './invites';
-import { twilioSecrets } from './twilio';
+import { messagingSecrets } from './mail';
 import type { Community, InviteRequest, Tenant } from './models';
 
 /**
@@ -161,7 +161,7 @@ export const submitInviteRequest = onCall(async (request) => {
  * 事務局が招待申請に応える。invite: 招待を送る(招待先はルートか連携コミュニティ。招待した人は事務局の担当者になる)。
  * decline: 見送る(申請者には送らない。必要なら事務局から個別に連絡する)。
  */
-export const decideInviteRequest = onCall({ secrets: twilioSecrets }, async (request) => {
+export const decideInviteRequest = onCall({ secrets: messagingSecrets }, async (request) => {
   const { identity, member: adminMember } = await requireAdmin(request.auth);
   const { requestId, decision, communityId: rawCommunityId, channel, declineReason } = (request.data ?? {}) as {
     requestId?: unknown;

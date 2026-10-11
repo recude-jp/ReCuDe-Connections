@@ -15,7 +15,7 @@
 
 | ツール | 用途 | 確認コマンド |
 | --- | --- | --- |
-| Node.js（20 以上。Cloud Functions の実行環境は Node 20） | ビルド | `node -v` |
+| Node.js（22 以上。Cloud Functions の実行環境は Node 22） | ビルド | `node -v` |
 | npm | 依存関係 | `npm -v` |
 | Firebase CLI | デプロイ | `firebase --version`（無ければ `npm install -g firebase-tools`） |
 | gcloud CLI（B のみ・推奨） | GCP API の有効化 | `gcloud --version` |
@@ -217,8 +217,10 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 
 | 用途 | 送信元 | 画面・処理 | 未設定のとき |
 | --- | --- | --- | --- |
-| **① ログイン用の認証コード（OTP）** | Firebase Authentication（電話番号認証） | `/login`・`/join` の「認証コードを送信」（`auth.service.ts` の `signInWithPhoneNumber`） | ログインできない（ただし「テスト用の電話番号」だけはログインできる） |
-| **② 招待 SMS** | Twilio（Cloud Functions から送信） | 招待の送付（`functions/src/invites.ts` → `functions/src/twilio.ts` の `sendSms`） | 送信されず、本文が Cloud Functions のログに出るだけ |
+| **① 参加するときの電話番号の確認** | Firebase Authentication（電話番号認証） | `/join` の「認証コードを送信」（`auth.service.ts` の `signInWithPhoneNumber`） | 参加できない（ただし「テスト用の電話番号」だけは参加できる） |
+| **② 招待 SMS・ログインの認証コード（SMS）** | Twilio（Cloud Functions から送信） | 招待の送付（`functions/src/invites.ts`）、`/login` の SMS の認証コード（`functions/src/loginAccount.ts`）。どちらも `functions/src/twilio.ts` の `sendSms` | 送信されず、本文が Cloud Functions のログに出るだけ |
+
+ログインの認証コードは、メール（Amazon SES）でも送れる → [メール送信を有効にする（Amazon SES）](#メール送信を有効にするamazon-ses)。
 
 確認用デプロイでは、①はテスト用の電話番号だけで使い、②はログに出すだけにしている。実際の会員に使ってもらう前に、次の手順で両方を有効にする。
 
@@ -238,7 +240,13 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 
 1. **Twilio のアカウントを用意する**: [Twilio](https://www.twilio.com/) でアカウントを作り、**有料アカウントにアップグレードする**。トライアルのままだと、Twilio に登録（認証）済みの番号にしか送れず、本文の先頭にトライアルの文言が付く。
 2. **日本あての送信を許可する**: Twilio Console > Messaging > Settings > **Geo permissions** で **Japan** にチェックを入れる。
-3. **送信元を用意する**: 日本の携帯電話あてに送れる送信元（電話番号、または英数字の送信者 ID）を用意する。日本あてに送るときの条件（使える送信元の種類・事前登録の要否）は変わることがあるので、Twilio の国別ガイドライン（Japan）で最新の情報を確認する。
+3. **送信元を用意する**: 日本あてには、**海外の電話番号**（例: アメリカの番号）を送信元にする。事前の登録が要らず、すぐ使える（2026年10月時点の [Twilio の国別ガイドライン（Japan）](https://www.twilio.com/en-us/guidelines/jp/sms)）。
+   1. Twilio Console > **Phone Numbers > Manage > Buy a number** を開く。
+   2. Country: **United States**、Capabilities: **SMS** にチェックして検索し、番号を1つ選んで「Buy」を押す（月額の番号料金がかかる）。アメリカの企業登録（A2P 10DLC）の案内が出ても、日本あてだけに送るなら不要。
+   3. 購入した番号を `+1...` の形（ハイフン・空白なし）で控える。手順 5 の `TWILIO_FROM_NUMBER` に使う。
+   - 会員には海外の番号から届く（au では先頭に `010` が付く）。本文の先頭にサービス名が入るので、会員に送信元の番号を案内しておく。
+   - 英数字の送信者名（例: `TGCONNECT`）で送るには、Twilio の営業を通じて国内向けの経路を申し込む（事前登録が必要で、約5週間かかる）。
+   - 日本あての SMS では、本文に電話番号を入れられない。
 4. **認証情報を控える**: Twilio Console のトップページで、**Account SID** と **Auth Token** を確認する。
 5. **Firebase のシークレットに登録する**（コマンドを実行すると値の入力を求められる）。
    ```bash
@@ -257,7 +265,13 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 - シークレットに実際の値を設定した後は、`deploy-init.sh` も `deploy.sh` もその値を上書きしない。
 - 招待 SMS の送信を止めたい（ログに出すだけに戻したい）ときは、`TWILIO_ACCOUNT_SID` に `unset` を設定し直して、再デプロイする。
 - Auth Token を再発行したときは、手順 5 の `TWILIO_AUTH_TOKEN` を設定し直して、再デプロイする。
-- メールでの招待は、今はまだログに出すだけ（`functions/src/mail.ts`）。メールを実際に送るには、配信サービスをつなぐ実装が別に必要。
+- メール（ログインの認証コード・メールアドレスの確認・メールでの招待）は、Amazon SES で送る → 次の節。
+
+## メール送信を有効にする（Amazon SES）
+
+ログインの認証コード・メールアドレスの登録の確認コード・メールでの招待は、Cloud Functions から Amazon SES で送る（`functions/src/mail.ts`）。SES の認証情報か差出人が未設定の間は、実際には送らず、本文が Cloud Functions のログに出るだけ。
+
+設定の手順は [`SES-SETTING.md`](SES-SETTING.md) にまとめた。
 
 ## 独自ドメインへの切り替え
 

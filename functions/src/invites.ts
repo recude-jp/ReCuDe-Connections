@@ -9,9 +9,9 @@ import { communityPath, isFullMember, recountCommunities } from './communities';
 import { buildMemberClaims } from './memberClaims';
 import { sanitizeDisplayName } from './profile';
 import { writeDirectRoom } from './rooms';
-import { sendEmail } from './mail';
+import { messagingSecrets, sendEmail } from './mail';
 import { loginSettingsPath, sanitizeLoginId } from './loginAccount';
-import { appBaseUrl, sendSms, twilioSecrets } from './twilio';
+import { appBaseUrl, sendSms } from './twilio';
 import type {
   Community,
   Connection,
@@ -156,7 +156,7 @@ const PHONE_PATTERN = /^\+[1-9]\d{7,14}$/;
  * 既に参加している電話番号、有効な招待がある電話番号には送れない。ただし連携コミュニティへの招待は、
  * そのテナントにアカウントがあり、まだその連携コミュニティのメンバーでない人にも送れる。
  */
-export const createInvite = onCall({ secrets: twilioSecrets }, async (request) => {
+export const createInvite = onCall({ secrets: messagingSecrets }, async (request) => {
   const data = (request.data ?? {}) as { name?: unknown; phoneNumber?: unknown; email?: unknown; target?: unknown };
   const { identity, inviter, communityId, community } = await resolveTarget(request.auth, data.target);
   const inviteId = await issueInvite({

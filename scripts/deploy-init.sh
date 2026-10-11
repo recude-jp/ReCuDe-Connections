@@ -146,9 +146,9 @@ if [ "$FIRESTORE_CREATED" -ne 1 ]; then
 fi
 
 echo ""
-echo "--- Twilioシークレットのプレースホルダー登録 ---"
-echo "  (実SMSは送信されません。 functions/src/twilio.ts のフォールバックによりログ出力のみになります)"
-for SECRET in TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_FROM_NUMBER; do
+echo "--- Twilio・SESシークレットのプレースホルダー登録 ---"
+echo "  (実SMS・実メールは送信されません。 functions/src/twilio.ts・mail.ts のフォールバックによりログ出力のみになります)"
+for SECRET in TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_FROM_NUMBER AWS_SES_ACCESS_KEY_ID AWS_SES_SECRET_ACCESS_KEY; do
   if firebase functions:secrets:access "$SECRET" --project "$PROJECT_ID" >/dev/null 2>&1; then
     echo "  $SECRET: 設定済みのためスキップします。"
   else

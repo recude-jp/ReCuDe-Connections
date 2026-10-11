@@ -6,8 +6,8 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Transaction } from 'firebase-admin/firestore';
 import { createHash, createHmac, randomBytes, randomInt } from 'crypto';
 import { hashSecret, verifySecret } from './hash';
-import { sendSms, twilioSecrets } from './twilio';
-import { sendEmail } from './mail';
+import { sendSms } from './twilio';
+import { mailSecrets, messagingSecrets, sendEmail } from './mail';
 import { buildMemberClaims } from './memberClaims';
 import { MemberRef, requireCallerIdentity } from './callerIdentity';
 import { getMemberPhone, loginSettingsPath } from './memberPrivate';
@@ -252,7 +252,7 @@ export const startLogin = onCall(async (request) => {
 });
 
 /** 選んだ送り先に、ログインの認証コードを送る。登録されていないIDでは、送らずに同じ応答を返す。 */
-export const sendLoginCode = onCall({ secrets: twilioSecrets }, async (request) => {
+export const sendLoginCode = onCall({ secrets: messagingSecrets }, async (request) => {
   const { identifier: rawIdentifier, channel } = (request.data ?? {}) as { identifier?: unknown; channel?: unknown };
   const identifier = parseIdentifier(rawIdentifier);
   if (channel !== 'email' && channel !== 'sms') {
@@ -442,7 +442,7 @@ function emailVerificationRef(ref: MemberRef) {
 }
 
 /** メールアドレスを登録するため、そのアドレスに確認コードを送る。 */
-export const startEmailRegistration = onCall(async (request) => {
+export const startEmailRegistration = onCall({ secrets: mailSecrets }, async (request) => {
   const identity = requireCallerIdentity(request.auth);
   const email = sanitizeEmail((request.data ?? {}).email);
   const code = generateCode();

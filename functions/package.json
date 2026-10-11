@@ -2,7 +2,7 @@
   "name": "functions",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "lib/index.js",
   "scripts": {
@@ -19,6 +19,7 @@
     "migrate:privacy": "ts-node scripts/migrate-privacy.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1149.0",
     "@simplewebauthn/server": "^13.3.2",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^5.1.1",

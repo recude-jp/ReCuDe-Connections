@@ -35,6 +35,19 @@ echo "--- スタンプの取り込み確認 ---"
 npm run stamps:check
 
 echo ""
+echo "--- シークレットの確認 ---"
+# 関数が宣言しているシークレットが Secret Manager に無いとデプロイできないため、無いものにはプレースホルダーを置く
+# (プレースホルダーのままなら、SMS・メールは送らずにログに出すだけ。実際の値を設定済みなら上書きしない)。
+for SECRET in TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_FROM_NUMBER AWS_SES_ACCESS_KEY_ID AWS_SES_SECRET_ACCESS_KEY; do
+  if firebase functions:secrets:access "$SECRET" --project "$PROJECT_ID" >/dev/null 2>&1; then
+    echo "  $SECRET: 設定済み"
+  else
+    printf 'unset' | firebase functions:secrets:set "$SECRET" --project "$PROJECT_ID" --force --data-file - >/dev/null
+    echo "  $SECRET: プレースホルダー 'unset' を設定しました"
+  fi
+done
+
+echo ""
 echo "--- ビルド ---"
 npm --prefix functions run build
 npm run build
