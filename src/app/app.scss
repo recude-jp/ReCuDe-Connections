@@ -1,0 +1,28 @@
+// 新しいバージョンがあるときの案内(画面の下に重ねて出す)。
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 10px 12px 10px 16px;
+  border-radius: 999px;
+  background: #1c1917;
+  color: #fff;
+  font-size: 0.88rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  transform: translateX(-50%);
+
+  button {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 999px;
+    background: #0f766e;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+  }
+}

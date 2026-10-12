@@ -111,10 +111,7 @@ npm --prefix functions install
   - ログインの認証コードは Cloud Functions が送る。Twilio・メール送信が未設定のときは実際には送らず、EmulatorのFunctionsのログに本文（`ログインの認証コード: 123456`）が出るので、そこで確認する。
   - 登録されていないIDを入れても、エラーにならずにダミーの送り先が出る（存在を伏せるため）。送信しても何も届かず、どのコードも「正しくありません」になる。
   - 同じIDへの送信は60秒に1回・1時間に5回まで。続けて試すときは、Emulator UI の Firestore で `loginCodes` の該当ドキュメントを消すと制限が戻る。
-- 参加（`/join`）の電話番号の確認は、従来どおり Firebase Phone Auth を使う。Auth Emulatorの認証コードは次のURLで確認する（配列の最後＝最新のものを使う）。
-  ```
-  http://localhost:9099/emulator/v1/projects/demo-recude-match/verificationCodes
-  ```
+- 参加（`/join`）の電話番号の確認も、ログインと同じく Cloud Functions が Twilio で認証コードを送る（`sendJoinCode`）。Twilio が未設定なら、EmulatorのFunctionsのログに本文（`参加の認証コード: 123456`）が出る。`functions/.secret.local` に Twilio の値を入れていると、Emulatorからも実際にSMSが送られるので注意する。
 - トークの暗号化（SECURITY-DEVELOPMENT.md 6章）: 会員ごとに、初めてトークを開くと回復コードが表示され、続けてパスキーで守る画面が出る（Chrome の `localhost` でもパスキーを使える。パスキーを使わずに回復コードだけで始めることもできる）。別のブラウザで同じ会員を開くと、パスキーか回復コードで暗号鍵を戻す画面になる。以前のパスフレーズで作った鍵は使えないため、作り直しになる。投入したメッセージは暗号化を入れる前のもの（平文）として表示される。相手が一度もトークを開いていない（暗号鍵を作っていない）と、相手あての鍵を配れないため、両方の会員で一度トークを開いてから試す。
 - プロフィールの公開・非公開: 投入した会員は全項目「公開」にしてある。`migrate:privacy` を実行したデータでは、全会員の項目が「未設定（公開されない）」になり、マイページで項目ごとに選ぶ。
 - 管理画面: 管理者は会員と同じ `/login` からログインする（事務局専用のメール・パスワードログインは廃止）。山田太郎でログインすると、メニューバーに「管理」が表示され、`/admin`（会員一覧・サービス設定）に入れる。
@@ -122,7 +119,7 @@ npm --prefix functions install
 
 ## GCPへの確認用デプロイ
 
-開発モードでの機能確認のため、Twilioは実際には設定せず、招待SMSはCloud Functionsのログ出力にとどめる。会員ログイン（`/login`）の認証コード（SMS・メール）も Cloud Functions が送るため、Twilio・メール送信が未設定ならCloud Functionsのログ（`sendLoginCode`）に出るコードで確認する（Firebase Console の「テスト用の電話番号」はログインには効かない）。参加（`/join`）の電話番号の確認は Firebase Authentication の電話番号認証なので、実SMSを送らずに確認するには「テスト用の電話番号」をFirebase Console側に登録しておく。
+開発モードでの機能確認のため、Twilioは実際には設定せず、招待SMSはCloud Functionsのログ出力にとどめる。会員ログイン（`/login`）と参加（`/join`）の認証コードも Cloud Functions が送るため、Twilio・メール送信が未設定ならCloud Functionsのログ（`sendLoginCode`・`sendJoinCode`）に出るコードで確認する。Firebase Console の「テスト用の電話番号」は使わない（登録すると、その番号の会員として固定コードでログインできてしまう）。
 
 ### 事前準備（手動・一度だけ）
 
@@ -130,8 +127,7 @@ npm --prefix functions install
 2. `firebase login` でCLIにログインする。
 3. プロジェクトルート（`ReCuDe-Connections/`）で `firebase use --add` を実行し、作成したプロジェクトを **エイリアス名 "default"** で紐づける（デプロイスクリプトが`.firebaserc`の`default`を読むため）。
 4. Firebase Console > Authentication > Sign-in method で「電話番号」プロバイダを有効化する。
-5. 同じ画面下部の「テスト用の電話番号」に、確認に使う電話番号と固定OTPコード（例: `090-0000-0001` / `123456`）を登録する。実SMSを送らずにログイン確認できるようになる。
-6. Firebase Console > プロジェクトの設定 > サービスアカウント から秘密鍵（JSON）をダウンロードする（本番シードスクリプトで使用。取り扱いに注意し、リポジトリにコミットしないこと）。
+5. Firebase Console > プロジェクトの設定 > サービスアカウント から秘密鍵（JSON）をダウンロードする（本番シードスクリプトで使用。取り扱いに注意し、リポジトリにコミットしないこと）。
 
 ### 初期デプロイ
 
@@ -165,7 +161,7 @@ npm --prefix functions run seed:prod -- --yes
 ```
 
 - `SEED_TENANT_ID`は、`src/environments/environment.ts` の `tenantId`（初期デプロイで入力したテナントID。確認用デプロイでは `tokyo-gifu-connect`）と同じ値にすること。違うと、ログイン画面がテナントを見つけられない。
-- `SEED_ADMIN_PHONE`には、事前準備でFirebase Consoleに登録した「テスト用の電話番号」と同じ番号を指定すること。
+- `SEED_ADMIN_PHONE`には、管理者の携帯電話番号を指定する。Twilio が未設定の間は、ログインの認証コードはCloud Functionsのログ（`sendLoginCode`）で確認する。
 - `SEED_SERVICE_NAME`は省略すると組織名になる。アイコン（ロゴ画像）は、ログイン後に管理画面のサービス設定から登録する。
 - 同じ電話番号で再実行した場合は、既存の会員に管理者ロールを付け直す（会員は重複して作られない）。
 
@@ -179,7 +175,7 @@ npm --prefix functions run seed:prod -- --yes
    firebase functions:log --project <プロジェクトID>
    ```
    またはGCP ConsoleのLogs Explorerで`resource.type="cloud_run_revision"`かつ`SMS未送信`を含むログを検索する。
-5. ログから招待リンク（`https://<プロジェクトID>.web.app/join`）をコピーし、招待された側の電話番号（あらかじめFirebase Consoleに「テスト用の電話番号」として登録しておく）でアクセスして登録フローを確認する。
+5. ログから招待リンク（`https://<プロジェクトID>.web.app/join`）をコピーし、招待された側の電話番号でアクセスして登録フローを確認する。参加の認証コードは、Twilio が未設定の間はCloud Functionsのログ（`sendJoinCode`）に出る。
 
 ### 差分デプロイ（日常の更新）
 

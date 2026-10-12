@@ -28,6 +28,21 @@ export function isFullMember(member: Pick<Member, 'membership'>): boolean {
   return !member.membership || member.membership === 'member';
 }
 
+/**
+ * 出会いを探すで見つけられ、コネクト申請し合えるか。正規の会員どうしと、同じ連携コミュニティに所属する人どうし
+ * (連携コミュニティだけのメンバーを含む)。ゲストは対象外。src/app/core/utils/membership.ts の canDiscover と揃える。
+ */
+export function canDiscover(a: Pick<Member, 'membership' | 'communityIds'>, b: Pick<Member, 'membership' | 'communityIds'>): boolean {
+  if (isFullMember(a) && isFullMember(b)) {
+    return true;
+  }
+  if (a.membership === 'guest' || b.membership === 'guest') {
+    return false;
+  }
+  const mine = new Set(a.communityIds ?? []);
+  return (b.communityIds ?? []).some((id) => mine.has(id));
+}
+
 /** 会員データに、その連携コミュニティの記録(所属・管理者・申請・プロフィール)があるか。 */
 function isInCommunityRecords(member: Member, communityId: string): boolean {
   return (

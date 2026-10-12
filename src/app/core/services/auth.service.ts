@@ -3,9 +3,6 @@ import {
   Auth,
   authState,
   signInWithCustomToken,
-  signInWithPhoneNumber,
-  RecaptchaVerifier,
-  ConfirmationResult,
   signOut as firebaseSignOut,
   getIdTokenResult,
   User,
@@ -71,9 +68,6 @@ export class AuthService {
   /** 初回の認証状態確認が完了するまでは undefined を発行する。 */
   readonly session$: Observable<AppSessionState> = this.sessionSubject.asObservable();
 
-  private recaptchaVerifier?: RecaptchaVerifier;
-  private confirmationResult?: ConfirmationResult;
-
   constructor() {
     authState(this.auth).subscribe((user) => {
       void this.handleAuthStateChange(user);
@@ -84,31 +78,27 @@ export class AuthService {
     return this.sessionSubject.value;
   }
 
-  /** ログインフォームの reCAPTCHA (invisible) を初期化する。 */
-  initRecaptcha(containerId: string): void {
-    this.recaptchaVerifier = new RecaptchaVerifier(this.auth, containerId, {
-      size: 'invisible',
-    });
+  /**
+   * 参加の画面(/join)で、電話番号に認証コードをSMSで送る(ログインと同じくTwilioで送る)。
+   * 使える招待(招待リンクのコード、またはその電話番号あての招待)があるときだけ送られる。
+   */
+  async sendJoinCode(phoneNumber: string, inviteCode: string | null): Promise<void> {
+    const send = httpsCallable<{ phoneNumber: string; code?: string }, { sent: boolean }>(this.functions, 'sendJoinCode');
+    await send({ phoneNumber, ...(inviteCode ? { code: inviteCode } : {}) });
   }
 
-  /** 電話番号にOTPを送信する。会員ログイン(/login)・候補者登録(/join)の両方で使う共通処理。 */
-  async sendOtp(phoneNumber: string): Promise<void> {
-    if (!this.recaptchaVerifier) {
-      throw new Error('reCAPTCHAが初期化されていません。');
-    }
-    this.confirmationResult = await signInWithPhoneNumber(this.auth, phoneNumber, this.recaptchaVerifier);
-  }
-
-  /** OTPを確認してFirebase Authへのサインインを完了する。カスタムクレームの解決は呼び出し側の責務。 */
-  async confirmOtp(code: string): Promise<void> {
-    if (!this.confirmationResult) {
-      throw new Error('先に認証コードを送信してください。');
-    }
-    await this.confirmationResult.confirm(code);
+  /** 参加の認証コードを確かめて、その電話番号のアカウントでサインインする。カスタムクレームの解決は呼び出し側の責務。 */
+  async verifyJoinCode(phoneNumber: string, code: string): Promise<void> {
+    const verify = httpsCallable<{ phoneNumber: string; code: string }, { customToken: string }>(
+      this.functions,
+      'verifyJoinCode',
+    );
+    const { data } = await verify({ phoneNumber, code });
+    await signInWithCustomToken(this.auth, data.customToken);
   }
 
   /**
-   * 電話番号ログイン(/login)専用。resolveMemberSession Functionsを呼び、
+   * 参加の画面(/join)で、参加したあとに呼ぶ。resolveMemberSession Functionsを呼び、
    * 既存会員としてのカスタムクレームをIDトークンへ反映する。
    * 未登録の電話番号の場合はFunctions側でnot-foundがthrowされる。
    */

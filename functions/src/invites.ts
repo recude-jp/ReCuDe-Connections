@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import * as logger from 'firebase-functions/logger';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { randomBytes } from 'node:crypto';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { requireCallerIdentity, requireFullMember } from './callerIdentity';
@@ -10,7 +11,20 @@ import { buildMemberClaims } from './memberClaims';
 import { sanitizeDisplayName } from './profile';
 import { writeDirectRoom } from './rooms';
 import { messagingSecrets, sendEmail } from './mail';
-import { loginSettingsPath, sanitizeLoginId } from './loginAccount';
+import {
+  CODE_MAX_ATTEMPTS,
+  CODE_TTL_MS,
+  SENDS_PER_HOUR,
+  authUidForPhone,
+  countSendFromIp,
+  generateCode,
+  loginSettingsPath,
+  nextSentAt,
+  sanitizeLoginId,
+  serviceNameOf,
+  sha256,
+} from './loginAccount';
+import { hashSecret, verifySecret } from './hash';
 import { appBaseUrl, sendSms } from './twilio';
 import type {
   Community,
@@ -19,6 +33,7 @@ import type {
   InviteCode,
   InviteIndexEntry,
   InviteTarget,
+  LoginCode,
   LoginIdIndexEntry,
   Member,
   MemberLoginSettings,
@@ -266,7 +281,7 @@ export async function issueInvite(input: IssueInviteInput): Promise<string> {
   const inviterName = inviter.displayName;
   const place = community ? `${serviceName}の「${community.name}」` : serviceName;
   const message = input.requestId
-    ? `${name}さん、${place}への招待のご申請ありがとうございます。事務局（${inviterName}）から招待をお送りします。次のリンクから参加できます。\n${joinUrl(code)}`
+    ? `${name}さん、${place}への招待のご申請を承認しました。次のリンクを開き、申請のときに入力した電話番号で認証して、参加の手続きをしてください。\n${joinUrl(code)}`
     : `${name}さん、${inviterName}さんから${place}に招待されました。次のリンクから参加できます。\n${joinUrl(code)}`;
   if (phoneNumber && !(input.sendBy === 'email' && email)) {
     await sendSms(phoneNumber, message);
@@ -351,6 +366,107 @@ async function findInvitation(code: string | undefined, phoneNumber: string | un
   }
   throw new HttpsError('not-found', '招待が見つかりません。招待してくれた方に、招待リンクかQRコードをもらってください。');
 }
+
+const JOIN_PHONE_PATTERN = /^\+[1-9]\d{7,14}$/;
+
+/** 参加の認証コードの記録(loginCodes/[sha256("join:" + 電話番号)])。ログインの認証コードと同じ形で持つ。 */
+function joinCodeRef(phoneNumber: string) {
+  return db().doc(`loginCodes/${sha256(`join:${phoneNumber}`)}`);
+}
+
+function requireJoinPhone(value: unknown): string {
+  const phoneNumber = typeof value === 'string' ? value.trim() : '';
+  if (!JOIN_PHONE_PATTERN.test(phoneNumber)) {
+    throw new HttpsError('invalid-argument', '電話番号の形式が正しくありません。ハイフンなしの数字でご入力ください。');
+  }
+  return phoneNumber;
+}
+
+/**
+ * 参加の画面(/join)で、電話番号に認証コードをSMSで送る(ログインの認証コードと同じくTwilioで送る)。未ログイン状態から呼べる。
+ * 使える招待(招待リンクのコード、またはその電話番号あての招待)があるときだけ送る。送信回数は電話番号ごと・接続元ごとに制限する。
+ */
+export const sendJoinCode = onCall({ secrets: messagingSecrets }, async (request) => {
+  const { code: rawCode, phoneNumber: rawPhone } = (request.data ?? {}) as { code?: unknown; phoneNumber?: unknown };
+  const phoneNumber = requireJoinPhone(rawPhone);
+  const code = typeof rawCode === 'string' && rawCode ? rawCode : undefined;
+  const resolved = await resolveInvitation(code, phoneNumber);
+  // 電話番号あての招待では、ほかの番号には送らない(参加の最後で断られる前に、ここで知らせる)。
+  if (resolved.invite?.phoneNumber && resolved.invite.phoneNumber !== phoneNumber) {
+    throw new HttpsError(
+      'permission-denied',
+      'この招待は別の電話番号あてです。招待のSMSを受け取った電話番号を入力してください。',
+    );
+  }
+
+  const otp = generateCode();
+  const codeHash = await hashSecret(otp);
+  const now = Date.now();
+  const ref = joinCodeRef(phoneNumber);
+  await db().runTransaction(async (tx) => {
+    const existing = (await tx.get(ref)).data() as LoginCode | undefined;
+    const sentAt = nextSentAt(existing?.sentAt, SENDS_PER_HOUR, now);
+    await countSendFromIp(tx, request, now);
+    tx.set(ref, {
+      channel: 'sms',
+      codeHash,
+      expiresAt: Timestamp.fromMillis(now + CODE_TTL_MS),
+      failedAttempts: 0,
+      sentAt,
+    } satisfies LoginCode);
+  });
+
+  const serviceName = await serviceNameOf(resolved.tenantId);
+  try {
+    await sendSms(phoneNumber, `【${serviceName}】参加の認証コード: ${otp}（10分間有効）`);
+  } catch (err) {
+    logger.error('参加の認証コードの送信に失敗しました', err);
+    throw new HttpsError('internal', '認証コードを送信できませんでした。電話番号をご確認のうえ、時間をおいてもう一度お試しください。');
+  }
+  return { sent: true };
+});
+
+/**
+ * 参加の認証コードを確かめ、合っていればその電話番号の Firebase Auth ユーザー(無ければ作る)のカスタムトークンを返す。
+ * ユーザーには電話番号が付いているため、IDトークンの phone_number で joinAsGuest・resolveMemberSession が使える。
+ * 判定と失敗回数の更新はトランザクション内で行い、エラーはトランザクションの外で投げる(verifyLoginCode と同じ)。
+ */
+export const verifyJoinCode = onCall({ concurrency: 1 }, async (request) => {
+  const { phoneNumber: rawPhone, code } = (request.data ?? {}) as { phoneNumber?: unknown; code?: unknown };
+  const phoneNumber = requireJoinPhone(rawPhone);
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+    throw new HttpsError('invalid-argument', '6桁の認証コードを入力してください。');
+  }
+  const ref = joinCodeRef(phoneNumber);
+  const outcome = await db().runTransaction(async (tx): Promise<'expired' | 'locked' | 'invalid' | 'success'> => {
+    const data = (await tx.get(ref)).data() as LoginCode | undefined;
+    if (!data?.expiresAt || data.expiresAt.toMillis() < Date.now()) {
+      return 'expired';
+    }
+    if (data.failedAttempts >= CODE_MAX_ATTEMPTS) {
+      return 'locked';
+    }
+    if (!data.codeHash || !(await verifySecret(code, data.codeHash))) {
+      const failedAttempts = data.failedAttempts + 1;
+      tx.update(ref, { failedAttempts });
+      return failedAttempts >= CODE_MAX_ATTEMPTS ? 'locked' : 'invalid';
+    }
+    // 送信回数の記録(sentAt)は残し、使った認証コードだけを消す。
+    tx.update(ref, { codeHash: FieldValue.delete(), expiresAt: FieldValue.delete(), failedAttempts: 0 });
+    return 'success';
+  });
+  if (outcome === 'expired') {
+    throw new HttpsError('deadline-exceeded', '認証コードの有効期限が切れました。もう一度送信してください。');
+  }
+  if (outcome === 'locked') {
+    throw new HttpsError('resource-exhausted', '認証コードの入力の回数が上限に達しました。もう一度送信してください。');
+  }
+  if (outcome === 'invalid') {
+    throw new HttpsError('permission-denied', '認証コードが正しくありません。ご確認のうえ再度入力してください。');
+  }
+  const uid = await authUidForPhone(phoneNumber);
+  return { customToken: await admin.auth().createCustomToken(uid) };
+});
 
 /**
  * 招待リンクを開いたときに出す案内(組織名・招待した人・名前の初期値)。ログイン前でも呼べる

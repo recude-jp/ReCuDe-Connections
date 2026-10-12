@@ -13,3 +13,30 @@
   font-size: 0.8rem;
   color: #854d0e;
 }
+
+.result-heading {
+  margin: 20px 0 8px;
+  color: #57534e;
+  font-size: 0.85rem;
+}
+
+.community-badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ccfbf1;
+  color: #115e59;
+  font-size: 0.72rem;
+}
+
+.more {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f766e;
+  cursor: pointer;
+}

@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   runTransaction,
   serverTimestamp,
   setDoc,
@@ -392,10 +393,47 @@ export class E2eeService {
     let entry = this.publicKeys.get(memberId);
     if (!entry) {
       entry = getDoc(this.memberKeyRef(memberId)).then((snap) => (snap.data() as MemberPublicKey | undefined) ?? null);
-      entry.catch(() => this.publicKeys.delete(memberId));
+      // まだ公開鍵が無い(null)・失敗したときは覚えない(あとで鍵を作ったら渡せるように)。
+      entry.then(
+        (published) => published ?? this.publicKeys.delete(memberId),
+        () => this.publicKeys.delete(memberId),
+      );
       this.publicKeys.set(memberId, entry);
     }
     return entry;
+  }
+
+  /**
+   * ほかのメンバーの公開鍵が作られた・作り直されたら、onChange を呼ぶ(開いているトークで、鍵をすぐ渡すため)。
+   * 戻り値を呼ぶと見るのをやめる。
+   */
+  watchPublicKeys(memberIds: string[], onChange: () => void): () => void {
+    if (!this.me) {
+      return () => undefined;
+    }
+    const unsubscribes = memberIds
+      .filter((id) => id !== this.me!.memberId)
+      .map((memberId) => {
+        let first = true;
+        return onSnapshot(
+          this.memberKeyRef(memberId),
+          (snap) => {
+            const published = (snap.data() as MemberPublicKey | undefined) ?? null;
+            if (published) {
+              this.publicKeys.set(memberId, Promise.resolve(published));
+            } else {
+              this.publicKeys.delete(memberId);
+            }
+            // 最初の読み込みは、トークを開いたときの配布で足りる。
+            if (!first && published) {
+              onChange();
+            }
+            first = false;
+          },
+          () => undefined,
+        );
+      });
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   }
 
   private wrapContext(roomId: string, epoch: number, recipientId: string): string {

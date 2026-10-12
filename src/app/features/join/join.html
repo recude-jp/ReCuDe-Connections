@@ -45,6 +45,7 @@
         (ngModelChange)="phoneNumber.set($event)"
         required
       />
+      <p class="hint">招待のSMSを受け取った電話番号（招待を申請した方は、申請のときに入力した電話番号）を入力してください。この番号に認証コードをSMSでお送りします。</p>
       <button type="submit" [disabled]="loading() || !phoneNumber()">認証コードを送信</button>
     </form>
   }
@@ -60,6 +61,11 @@
       />
       <button type="submit" [disabled]="loading() || otpCode().length !== 6">確認</button>
     </form>
+    <p class="hint">
+      {{ phoneNumber() }} あてに、6桁の認証コードをSMSでお送りしました（10分間有効）。届かないときは、1分ほど待ってから
+      <button type="button" class="link-button" [disabled]="loading()" (click)="backToPhone()">電話番号を確かめて送り直す</button>
+      ことができます。
+    </p>
   }
 
   @if ((step() === 'name' || step() === 'confirm') && !preview()?.alreadyInTarget && !preview()?.pendingApproval) {
@@ -172,7 +178,7 @@
 
   @if (step() !== 'confirm' && step() !== 'submitted') {
     <p class="login-link">すでに参加している方は <a routerLink="/login">ログイン</a></p>
+    <p class="help">うまく進めないときは、招待してくれた方か事務局に、表示されたメッセージをお知らせください。</p>
   }
 
-  <div id="recaptcha-container"></div>
 </div>

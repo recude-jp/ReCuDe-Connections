@@ -61,20 +61,30 @@ export class InviteRequestPage {
   /** どちらも「いいえ」のときは、利用の条件を満たさない。 */
   readonly notEligible = computed(() => this.kenjinkaiMember() === false && this.alumniMember() === false);
 
-  readonly canSubmit = computed(
-    () =>
-      !this.submitting() &&
-      !!this.name().trim() &&
-      !!this.phoneNumber().trim() &&
-      !!this.hometown().trim() &&
-      !!(this.highSchool().trim() || this.juniorHighSchool().trim()) &&
-      this.kenjinkaiMember() !== null &&
-      this.alumniMember() !== null &&
-      !this.notEligible() &&
-      (this.alumniMember() !== true ||
-        (!!this.alumniChoice() && (this.alumniChoice() !== OTHER_ALUMNI || !!this.alumniOtherName().trim()))) &&
-      this.agreed(),
-  );
+  /**
+   * 申請するために、まだ入力・選択が必要なもの(ボタンの下に出して、押せない理由が分かるようにする)。
+   * 県人会の会員なら、在京同窓会の質問は答えなくてよい。
+   */
+  readonly missingItems = computed(() => {
+    const items: string[] = [];
+    if (!this.name().trim()) items.push('お名前');
+    if (!this.phoneNumber().trim()) items.push('電話番号');
+    if (!this.hometown().trim()) items.push('出身地');
+    if (!(this.highSchool().trim() || this.juniorHighSchool().trim())) items.push('出身高校か出身中学');
+    if (this.kenjinkaiMember() === null) items.push(`${this.organization()}の会員かどうか`);
+    if (this.kenjinkaiMember() !== true) {
+      if (this.alumniMember() === null) {
+        items.push('在京同窓会の会員かどうか');
+      } else if (this.alumniMember() === true) {
+        if (!this.alumniChoice()) items.push('加入している在京同窓会');
+        else if (this.alumniChoice() === OTHER_ALUMNI && !this.alumniOtherName().trim()) items.push('在京同窓会の名前');
+      }
+    }
+    if (!this.agreed()) items.push('同意のチェック');
+    return items;
+  });
+
+  readonly canSubmit = computed(() => !this.submitting() && !this.notEligible() && this.missingItems().length === 0);
 
   constructor() {
     this.publicBranding
@@ -112,7 +122,7 @@ export class InviteRequestPage {
         juniorHighSchool: this.juniorHighSchool().trim(),
         kenjinkaiMember: this.kenjinkaiMember() === true,
         alumniMember: alumni,
-        alumniCommunityId: alumni && this.alumniChoice() !== OTHER_ALUMNI ? this.alumniChoice() : '',
+        alumniCommunityId: alumni && this.alumniChoice() && this.alumniChoice() !== OTHER_ALUMNI ? this.alumniChoice() : '',
         alumniOtherName: alumni && this.alumniChoice() === OTHER_ALUMNI ? this.alumniOtherName().trim() : '',
         referrer: this.referrer().trim(),
         note: this.note().trim(),

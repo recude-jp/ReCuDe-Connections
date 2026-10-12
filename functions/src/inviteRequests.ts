@@ -95,7 +95,8 @@ export const submitInviteRequest = onCall(async (request) => {
         throw new HttpsError('invalid-argument', '在京同窓会を選び直してください。');
       }
     } else {
-      alumniOtherName = text(data['alumniOtherName'], '在京同窓会の名前', 50, true);
+      // 県人会の会員なら、在京同窓会の名前は書かなくてもよい(利用の条件は県人会の会員で満たす)。
+      alumniOtherName = text(data['alumniOtherName'], '在京同窓会の名前', 50, !kenjinkaiMember);
     }
   }
   const referrer = text(data['referrer'], '紹介者', 30);

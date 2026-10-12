@@ -1,9 +1,30 @@
+const FALLBACK_MESSAGE = '処理に失敗しました。時間をおいて再度お試しください。';
+
+/**
+ * 通信の失敗などで、Cloud Functions が日本語の理由を返さなかったときの文言
+ * (このとき、メッセージはコード名や英語のまま届く)。
+ */
+const FUNCTIONS_ERROR_MESSAGES: Record<string, string> = {
+  'functions/unavailable': '通信に失敗しました。電波の状況を確かめて、もう一度お試しください。',
+  'functions/deadline-exceeded': '通信に時間がかかっています。電波の状況を確かめて、もう一度お試しください。',
+  'functions/internal': FALLBACK_MESSAGE,
+  'functions/unknown': FALLBACK_MESSAGE,
+};
+
 /** Firebase/Cloud FunctionsのHttpsErrorも含め、UIに表示できるメッセージ文字列に変換する。 */
 export function toErrorMessage(err: unknown): string {
   if (err instanceof Error) {
-    return err.message;
+    const code = (err as { code?: unknown }).code;
+    // サーバーが日本語の理由を付けて返したエラーは、そのまま出す。
+    if (/[\u3040-\u30ff\u4e00-\u9fff]/.test(err.message)) {
+      return err.message;
+    }
+    if (typeof code === 'string' && code in FUNCTIONS_ERROR_MESSAGES) {
+      return FUNCTIONS_ERROR_MESSAGES[code];
+    }
+    return err.message || FALLBACK_MESSAGE;
   }
-  return '処理に失敗しました。時間をおいて再度お試しください。';
+  return FALLBACK_MESSAGE;
 }
 
 /**
@@ -33,28 +54,4 @@ export function isAlreadyRegisteredError(err: unknown): boolean {
     e?.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED' ||
     e?.cause?.name === 'InvalidStateError'
   );
-}
-
-const PHONE_AUTH_ERROR_MESSAGES: Record<string, string> = {
-  // Firebaseプロジェクトの「SMSリージョンポリシー」等の設定により送信できない場合。
-  // 開発者向けの英語メッセージ(auth/operation-not-allowed)をそのまま出さないようにする。
-  'auth/operation-not-allowed':
-    '現在、SMSによる認証コードの送信を利用できません。時間をおいて再度お試しいただくか、事務局までお問い合わせください。',
-  'auth/invalid-phone-number': '電話番号の形式が正しくありません。ハイフンなしの数字でご入力ください。',
-  'auth/missing-phone-number': '電話番号を入力してください。',
-  'auth/quota-exceeded': 'SMSの送信件数が上限に達しています。時間をおいて再度お試しください。',
-  'auth/too-many-requests': 'リクエストが多すぎます。時間をおいて再度お試しください。',
-  'auth/captcha-check-failed': '確認に失敗しました。ページを再読み込みしてもう一度お試しください。',
-  'auth/invalid-verification-code': '認証コードが正しくありません。ご確認のうえ再度入力してください。',
-  'auth/code-expired': '認証コードの有効期限が切れました。もう一度SMSを送信してください。',
-  'auth/network-request-failed': '通信に失敗しました。電波状況をご確認のうえ、再度お試しください。',
-};
-
-/** 電話番号OTP送信・確認(signInWithPhoneNumber等)のFirebaseエラーを日本語メッセージに変換する。 */
-export function toPhoneAuthErrorMessage(err: unknown): string {
-  const code = err instanceof Error ? (err as unknown as { code?: unknown }).code : undefined;
-  if (typeof code === 'string' && code in PHONE_AUTH_ERROR_MESSAGES) {
-    return PHONE_AUTH_ERROR_MESSAGES[code];
-  }
-  return toErrorMessage(err);
 }

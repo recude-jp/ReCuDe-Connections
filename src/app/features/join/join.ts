@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { filter, firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -11,7 +11,7 @@ import { PinInput } from '../../shared/pin-input/pin-input';
 import { CommunityLogo } from '../../shared/community-logo/community-logo';
 import { MembershipTermsView } from '../../shared/membership-terms/membership-terms';
 import { toE164 } from '../../core/utils/phone';
-import { toErrorMessage, toPhoneAuthErrorMessage } from '../../core/utils/errors';
+import { toErrorMessage } from '../../core/utils/errors';
 import { DEFAULT_SITE_TITLE } from '../../core/utils/branding';
 import { environment } from '../../../environments/environment';
 
@@ -34,7 +34,7 @@ type Step = 'phone' | 'otp' | 'name' | 'confirm' | 'submitted';
   templateUrl: './join.html',
   styleUrl: './join.scss',
 })
-export class Join implements AfterViewInit {
+export class Join {
   private readonly auth = inject(AuthService);
   private readonly inviteService = inject(InviteService);
   private readonly publicBranding = inject(PublicBrandingService);
@@ -93,34 +93,37 @@ export class Join implements AfterViewInit {
     }
   }
 
-  ngAfterViewInit(): void {
-    this.auth.initRecaptcha('recaptcha-container');
-  }
-
   async sendOtp(): Promise<void> {
     this.errorMessage.set('');
     this.loading.set(true);
     try {
-      await this.auth.sendOtp(toE164(this.phoneNumber()));
+      await this.auth.sendJoinCode(toE164(this.phoneNumber()), this.code);
       this.step.set('otp');
     } catch (err) {
-      this.errorMessage.set(toPhoneAuthErrorMessage(err));
+      this.errorMessage.set(toErrorMessage(err));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** 認証コードが届かないとき、電話番号の入力に戻る(送り直しの間隔の制限はサーバーで確かめる)。 */
+  backToPhone(): void {
+    this.errorMessage.set('');
+    this.otpCode.set('');
+    this.step.set('phone');
   }
 
   async confirmOtp(): Promise<void> {
     this.errorMessage.set('');
     this.loading.set(true);
     try {
-      await this.auth.confirmOtp(this.otpCode());
+      await this.auth.verifyJoinCode(toE164(this.phoneNumber()), this.otpCode());
       // ログインした電話番号で、もう一度案内を取り直す(コードが無いときの招待探しと、参加済みかの確認)。
       const preview = await this.inviteService.getInvitePreview(this.code);
       this.applyPreview(preview);
       this.step.set(preview.alreadyJoined ? 'confirm' : 'name');
     } catch (err) {
-      this.errorMessage.set(toPhoneAuthErrorMessage(err));
+      this.errorMessage.set(toErrorMessage(err));
     } finally {
       this.loading.set(false);
     }

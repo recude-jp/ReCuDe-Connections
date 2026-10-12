@@ -30,12 +30,12 @@ import type {
  * 「送信しました」と応える(実際には送らない)。送信回数の制限・認証コードの判定も、登録されているIDと同じ流れにする。
  */
 
-const CODE_TTL_MS = 10 * 60 * 1000;
-const CODE_MAX_ATTEMPTS = 5;
+export const CODE_TTL_MS = 10 * 60 * 1000;
+export const CODE_MAX_ATTEMPTS = 5;
 const HOUR_MS = 60 * 60 * 1000;
 /** 同じIDへの送信の間隔と、1時間あたりの上限。 */
 const SEND_INTERVAL_MS = 60 * 1000;
-const SENDS_PER_HOUR = 5;
+export const SENDS_PER_HOUR = 5;
 /** 同じ接続元(IPアドレス)からの、1時間あたりの送信の上限(IDを変えながらの大量送信を防ぐ)。 */
 const SENDS_PER_HOUR_PER_IP = 30;
 
@@ -187,16 +187,16 @@ async function decoyChannels(identifier: LoginIdentifier): Promise<LoginChannels
   return { email: digest[0] < 77, sms: true };
 }
 
-function sha256(value: string): string {
+export function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function generateCode(): string {
+export function generateCode(): string {
   return randomInt(0, 1_000_000).toString().padStart(6, '0');
 }
 
 /** 直近1時間の送信時刻を数え、制限を超えていればエラーにする。今回の送信を加えた一覧を返す。 */
-function nextSentAt(sentAt: Timestamp[] | undefined, perHour: number, now: number): Timestamp[] {
+export function nextSentAt(sentAt: Timestamp[] | undefined, perHour: number, now: number): Timestamp[] {
   const recent = (sentAt ?? []).filter((t) => t.toMillis() > now - HOUR_MS);
   const last = recent.length > 0 ? recent[recent.length - 1].toMillis() : 0;
   if (now - last < SEND_INTERVAL_MS) {
@@ -209,7 +209,7 @@ function nextSentAt(sentAt: Timestamp[] | undefined, perHour: number, now: numbe
 }
 
 /** 接続元ごとの送信回数を数える(IPアドレスはハッシュにして保存する)。 */
-async function countSendFromIp(tx: Transaction, request: CallableRequest, now: number): Promise<void> {
+export async function countSendFromIp(tx: Transaction, request: CallableRequest, now: number): Promise<void> {
   const ip = request.rawRequest?.ip;
   if (!ip) {
     return;
@@ -223,13 +223,13 @@ async function countSendFromIp(tx: Transaction, request: CallableRequest, now: n
   tx.set(ref, { sentAt: [...recent, Timestamp.fromMillis(now)] });
 }
 
-async function serviceNameOf(tenantId: string): Promise<string> {
+export async function serviceNameOf(tenantId: string): Promise<string> {
   const tenant = (await db().doc(`tenants/${tenantId}`).get()).data() as Tenant | undefined;
   return tenant?.branding?.siteTitle || tenant?.name || 'ReCuDe Connections';
 }
 
 /** Firebase Auth のユーザー(電話番号でログインしたときと同じユーザー)。無ければ作る。 */
-async function authUidForPhone(phoneNumber: string): Promise<string> {
+export async function authUidForPhone(phoneNumber: string): Promise<string> {
   try {
     return (await admin.auth().getUserByPhoneNumber(phoneNumber)).uid;
   } catch (err) {

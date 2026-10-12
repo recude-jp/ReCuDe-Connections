@@ -464,7 +464,13 @@ async function seed(): Promise<void> {
     const { publicValues: profile, privateValues } = splitProfileValues(PROFILE_FIELDS, allValues, visibility);
     // パスキー・PINの登録(サブコレクション)を消さないよう、会員ドキュメントだけを上書きする。
     // 電話番号は会員データには置かず、本人と管理者だけが読める private/login に置く(SECURITY-DEVELOPMENT.md 7章)。
-    await db.doc(`tenants/${TENANT_ID}/members/${id}`).set({ ...member, profile, createdAt: FieldValue.serverTimestamp() });
+    // 区分の無い会員は正規の会員(出会いを探すは、区分が member の会員を検索する)。
+    await db.doc(`tenants/${TENANT_ID}/members/${id}`).set({
+      ...member,
+      membership: member.membership ?? 'member',
+      profile,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     await db.doc(`tenants/${TENANT_ID}/members/${id}/private/profile`).set({
       values: privateValues,
       visibility,

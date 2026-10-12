@@ -1,1 +1,7 @@
 <router-outlet />
+@if (appUpdate.updateReady()) {
+  <div class="update-banner" role="status">
+    <span>新しいバージョンがあります</span>
+    <button type="button" (click)="appUpdate.reload()">更新する</button>
+  </div>
+}

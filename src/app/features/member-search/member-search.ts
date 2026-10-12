@@ -1,9 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { switchMap, of } from 'rxjs';
 import { AuthService, MemberSession } from '../../core/services/auth.service';
-import { MemberSearchService } from '../../core/services/member-search.service';
+import { MemberSearchService, MemberWithId } from '../../core/services/member-search.service';
 import { ConnectionService } from '../../core/services/connection.service';
 import type { Connection, Member, ProfileField, Tenant } from '../../core/models/firestore.models';
 import { MemberService } from '../../core/services/member.service';
@@ -11,8 +12,8 @@ import { MemberAvatar } from '../../shared/member-avatar/member-avatar';
 import { fixedSearchOptions, formatProfileValue, visibleProfileFields } from '../../core/utils/profile-fields';
 import { toErrorMessage } from '../../core/utils/errors';
 import { ConnectTabs } from '../../shared/connect-tabs/connect-tabs';
-import { isFullMember } from '../../core/utils/membership';
-
+import { canDiscover } from '../../core/utils/membership';
+import type { QueryDocumentSnapshot } from '@angular/fire/firestore';
 
 type ConnectionState =
   | { kind: 'none' }
@@ -22,7 +23,7 @@ type ConnectionState =
 
 @Component({
   selector: 'app-member-search',
-  imports: [FormsModule, ConnectTabs, MemberAvatar],
+  imports: [FormsModule, NgTemplateOutlet, ConnectTabs, MemberAvatar],
   templateUrl: './member-search.html',
   styleUrl: './member-search.scss',
 })
@@ -44,8 +45,6 @@ export class MemberSearch {
   readonly searchableFields = computed(() => this.fields().filter((field) => field.searchable));
   readonly formatValue = formatProfileValue;
 
-  /** ゲストは会員を見られるが、コネクト申請はできない。 */
-  readonly isGuest = computed(() => !!this.memberSession()?.isGuest);
 
   readonly session = toSignal(this.auth.session$, { initialValue: undefined });
 
@@ -72,8 +71,17 @@ export class MemberSearch {
   );
   readonly value = signal('');
   readonly valueOptions = signal<string[]>([]);
-  readonly results = signal<(Member & { id: string })[] | null>(null);
+  /** 同じ連携コミュニティの、連携コミュニティだけのメンバー(検索結果の先頭に出す)。 */
+  readonly communityResults = signal<MemberWithId[]>([]);
+  /** 正規の会員(「もっと見る」で続きを足していく)。 */
+  readonly results = signal<MemberWithId[] | null>(null);
+  /** 正規の会員の続きを読む位置(null なら続きは無い)。 */
+  private readonly cursor = signal<QueryDocumentSnapshot | null>(null);
+  readonly hasMore = computed(() => this.cursor() !== null);
   readonly loading = signal(false);
+  readonly loadingMore = signal(false);
+  /** 検索したときの条件(「もっと見る」で同じ条件の続きを読む)。 */
+  private lastQuery: { field: ProfileField | null; value: string } = { field: null, value: '' };
   readonly errorMessage = signal('');
   readonly requestingId = signal<string | null>(null);
 
@@ -97,17 +105,49 @@ export class MemberSearch {
     }
     this.errorMessage.set('');
     this.loading.set(true);
+    this.lastQuery = { field: this.selectedField(), value: this.value().trim() };
+    const { field, value } = this.lastQuery;
     try {
-      const found = await this.searchService.searchMembers(session.tenantId, this.selectedField(), this.value().trim());
-      // ゲスト(まだ正規の会員でない人)は検索結果に出さない。
-      this.results.set(
-        found.filter((m) => m.id !== session.memberId && m.isActive && isFullMember(m)),
-      );
+      // 正規の会員と、同じ連携コミュニティの連携コミュニティだけのメンバー(ゲストは出さない)。
+      const [page, community] = await Promise.all([
+        this.searchService.searchFullMembers(session.tenantId, field, value),
+        this.searchService.searchCommunityMembers(session.tenantId, session.communityIds, field, value),
+      ]);
+      this.communityResults.set(community.filter((m) => m.id !== session.memberId));
+      this.results.set(page.members.filter((m) => m.id !== session.memberId));
+      this.cursor.set(page.cursor);
     } catch (err) {
       this.errorMessage.set(toErrorMessage(err));
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** 正規の会員の続きを読む。 */
+  async loadMore(): Promise<void> {
+    const session = this.memberSession();
+    const cursor = this.cursor();
+    if (!session || !cursor) {
+      return;
+    }
+    this.errorMessage.set('');
+    this.loadingMore.set(true);
+    try {
+      const { field, value } = this.lastQuery;
+      const page = await this.searchService.searchFullMembers(session.tenantId, field, value, cursor);
+      this.results.update((list) => [...(list ?? []), ...page.members.filter((m) => m.id !== session.memberId)]);
+      this.cursor.set(page.cursor);
+    } catch (err) {
+      this.errorMessage.set(toErrorMessage(err));
+    } finally {
+      this.loadingMore.set(false);
+    }
+  }
+
+  /** この人にコネクト申請できるか(正規の会員どうしか、同じ連携コミュニティの人どうし)。 */
+  canRequest(member: Member): boolean {
+    const session = this.memberSession();
+    return !!session && canDiscover({ membership: session.membership, communityIds: session.communityIds }, member);
   }
 
   connectionState(otherMemberId: string): ConnectionState {

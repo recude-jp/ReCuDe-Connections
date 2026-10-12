@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { isFullMember } from './communities';
+import { canDiscover } from './communities';
 import type { Connection, Member } from './models';
 
 /** 2人のmemberIdから、順序に依存しない固定のコネクションIDを作る。 */
@@ -31,16 +31,27 @@ export const sendConnectionRequest = onCall(async (request) => {
   if (toMemberId === memberId) {
     throw new HttpsError('invalid-argument', '自分自身には申請できません。');
   }
-  // ゲスト(まだ正規の会員でない人)は、出会いを探すで会員を見られるが、コネクト申請はできない。
-  if (request.auth.token['isGuest'] === true) {
-    throw new HttpsError('permission-denied', 'コネクト申請は、正規の会員になるとできるようになります。');
-  }
-
+  // 正規の会員どうしと、同じ連携コミュニティに所属する人どうしが申請し合える(ゲストは申請できない)。
   const db = admin.firestore();
-  const targetSnap = await db.doc(`tenants/${tenantId}/members/${toMemberId}`).get();
+  const [requesterSnap, targetSnap] = await Promise.all([
+    db.doc(`tenants/${tenantId}/members/${memberId}`).get(),
+    db.doc(`tenants/${tenantId}/members/${toMemberId}`).get(),
+  ]);
+  const requester = requesterSnap.data() as Member | undefined;
   const target = targetSnap.data() as Member | undefined;
-  if (!target || !target.isActive || !isFullMember(target)) {
+  if (!requester || !requester.isActive) {
+    throw new HttpsError('permission-denied', '会員のみ操作できます。');
+  }
+  if (!target || !target.isActive) {
     throw new HttpsError('not-found', '申請先の会員が見つかりません。');
+  }
+  if (!canDiscover(requester, target)) {
+    throw new HttpsError(
+      'permission-denied',
+      requester.membership === 'guest' || requester.membership === 'community'
+        ? 'コネクト申請は、正規の会員になるか、同じ連携コミュニティのメンバーにだけできます。'
+        : '申請先の会員が見つかりません。',
+    );
   }
 
   const connectionId = connectionIdFor(memberId, toMemberId);

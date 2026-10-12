@@ -95,6 +95,7 @@ npm --prefix functions run migrate:profile -- --yes           # テナントご�
 npm --prefix functions run migrate:community-admins -- --yes  # 連携コミュニティの管理者の反映
 npm --prefix functions run migrate:rooms -- --yes             # 1対1チャットのルーム方式への移行
 npm --prefix functions run migrate:privacy -- --yes           # 電話番号を private/login へ移し、プロフィールを非公開(未設定)にする
+npm --prefix functions run migrate:membership -- --yes        # 区分の無い会員に正規の会員の区分(member)を書き入れる(出会いを探すの検索に必要)
 ```
 
 `migrate:privacy` のあとは、会員のプロフィールはいったんすべて非公開になる（公開・非公開は、会員がマイページで項目ごとに選ぶ。SECURITY-DEVELOPMENT.md 7章）。会員に、マイページで公開範囲を選ぶよう案内する。
@@ -125,8 +126,7 @@ gcloud storage buckets update gs://<storageBucket> --cors-file=storage-cors.json
 2. `firebase login` で CLI にログインする。
 3. プロジェクトルートで `firebase use --add` を実行し、作成したプロジェクトを**エイリアス名 `default`** で紐づける（`.firebaserc` が書き換わる）。
 4. Firebase Console > Authentication > Sign-in method で「電話番号」プロバイダを有効化する。
-5. 同じ画面の「テスト用の電話番号」に、確認用の電話番号と固定 OTP コード（例: `090-0000-0001` / `123456`）を登録する。
-6. Firebase Console > プロジェクトの設定 > サービスアカウント から秘密鍵（JSON）をダウンロードする。この鍵はリポジトリの外に置く。
+5. Firebase Console > プロジェクトの設定 > サービスアカウント から秘密鍵（JSON）をダウンロードする。この鍵はリポジトリの外に置く。
 
 ### B-2. 初期デプロイ
 
@@ -162,7 +162,7 @@ npm --prefix functions run seed:prod -- --yes
 ```
 
 - `SEED_TENANT_ID` が `environment.ts` の `tenantId` と違うと、ログイン画面がテナントを見つけられない。
-- `SEED_ADMIN_PHONE` には、B-1 で登録したテスト用の電話番号を国際形式（`+81...`）で指定する。
+- `SEED_ADMIN_PHONE` には、管理者の携帯電話番号を国際形式（`+81...`）で指定する。ログインの認証コードは、この番号に SMS で届く（Twilio が未設定の間は Cloud Functions のログに出る）。
 
 ### B-4. 生成されたファイルをコミットする
 
@@ -180,7 +180,7 @@ git commit -m "Configure Firebase project <プロジェクトID>"
 ## デプロイ後の確認
 
 1. アプリの URL を開く。独自ドメインに切り替えた後は `https://<独自ドメイン>`、切り替える前は `https://<プロジェクトID>.web.app`（既存プロジェクトなら https://default-41833.web.app ）。
-2. `/login` で、テスト用の電話番号と固定 OTP コードを入力してログインできることを確認する。
+2. `/login` で管理者の電話番号を入力し、届いた認証コード（Twilio が未設定の間は Cloud Functions のログの `sendLoginCode`）でログインできることを確認する。
 3. 管理者の番号でログインし、メニューに「管理」が出ること、`/admin` に入れることを確認する。
 4. 招待を送り、Cloud Functions のログに招待リンクが出ることを確認する（Twilio が未設定の間は、実際の SMS は送られない。有効にする手順は → [SMS 機能を有効にする](#sms-機能を有効にする)）。
    ```bash
@@ -213,28 +213,22 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 
 ## SMS 機能を有効にする
 
-このサービスでは、SMS を次の 2 つの用途で使う。それぞれ送信元が別なので、設定も別々に行う。
+このサービスの SMS（招待 SMS、ログインと参加の認証コード）は、すべて Cloud Functions から Twilio で送る（`functions/src/twilio.ts` の `sendSms`）。Twilio が未設定のときは送信されず、本文が Cloud Functions のログに出るだけになる。
 
-| 用途 | 送信元 | 画面・処理 | 未設定のとき |
-| --- | --- | --- | --- |
-| **① 参加するときの電話番号の確認** | Firebase Authentication（電話番号認証） | `/join` の「認証コードを送信」（`auth.service.ts` の `signInWithPhoneNumber`） | 参加できない（ただし「テスト用の電話番号」だけは参加できる） |
-| **② 招待 SMS・ログインの認証コード（SMS）** | Twilio（Cloud Functions から送信） | 招待の送付（`functions/src/invites.ts`）、`/login` の SMS の認証コード（`functions/src/loginAccount.ts`）。どちらも `functions/src/twilio.ts` の `sendSms` | 送信されず、本文が Cloud Functions のログに出るだけ |
+| 用途 | 画面・処理 |
+| --- | --- |
+| 招待 SMS | 招待の送付・招待の申請の承認（`functions/src/invites.ts` の `issueInvite`） |
+| ログインの認証コード | `/login` で SMS を選んだとき（`functions/src/loginAccount.ts` の `sendLoginCode`） |
+| 参加の認証コード | `/join` の「認証コードを送信」（`functions/src/invites.ts` の `sendJoinCode`）。使える招待があるときだけ送る |
 
 ログインの認証コードは、メール（Amazon SES）でも送れる → [メール送信を有効にする（Amazon SES）](#メール送信を有効にするamazon-ses)。
 
-確認用デプロイでは、①はテスト用の電話番号だけで使い、②はログに出すだけにしている。実際の会員に使ってもらう前に、次の手順で両方を有効にする。
+### ① Firebase Authentication の電話番号認証（使わない）
 
-### ① ログイン用の認証コード（Firebase Authentication）
+以前は参加（`/join`）の認証コードを Firebase Authentication の電話番号認証で送っていたが、Twilio に揃えた。Firebase の電話番号認証は使わないので、承認済みドメイン・reCAPTCHA・SMS リージョン ポリシーの設定は要らない。
 
-1. **料金プランを確認する**: Firebase Console > 左下の「プラン」が **Blaze（従量課金）** になっていることを確認する。Cloud Functions を使っているので、すでに Blaze のはず。実際の SMS 送信は 1 通ごとに課金される（料金は [Firebase の料金ページ](https://firebase.google.com/pricing) の Authentication > 電話認証 を参照）。
-2. **電話番号プロバイダを有効にする**: Firebase Console > Authentication > Sign-in method > 「電話番号」を「有効」にする（B-1 で実施済みなら不要）。
-3. **SMS を送る地域を日本に限定する**: Authentication > 設定 > 「SMS リージョン ポリシー」で「許可」を選び、**日本（JP）だけ**を追加する。国外の番号あてに大量の SMS を送らせる不正（SMS ポンピング）を防ぐため、必ず設定する。
-4. **承認済みドメインを確認する**: Authentication > 設定 > 「承認済みドメイン」に、アプリを開くドメインが入っていることを確認する。`<プロジェクトID>.web.app` と `<プロジェクトID>.firebaseapp.com` は最初から入っている。独自ドメインを使う場合は、そのドメインを追加する。ドメインが入っていないと、reCAPTCHA の検証でエラーになる。
-5. **テスト用の電話番号を整理する**: Sign-in method > 電話番号 > 「テスト用の電話番号」に、**実在する会員の番号**が登録されていないか確認する。登録されている番号には、実際の SMS が届かず、固定コードでログインできてしまう。実在しない確認用の番号（`090-0000-xxxx` など）は残してかまわない。
-6. **動作確認**: テスト用に登録していない実際の携帯番号で `/login` を開き、SMS で認証コードが届いて、ログインできることを確認する。
-
-- reCAPTCHA（画面に見えない形で動く）は、Firebase が自動で用意する。追加の設定は要らない。
-- 同じ番号・同じ端末から短い間に何度も送信すると、`auth/too-many-requests` になる。時間をおいてから試す。
+- **テスト用の電話番号は登録しない**: Authentication > Sign-in method > 電話番号 > 「テスト用の電話番号」に番号が残っていたら消す。Firebase の電話番号認証を直接呼ばれると、その番号の会員として固定コードでログインできてしまうため（2026-10-12 に、本番に残っていた管理者の番号を削除した）。
+- 電話番号プロバイダは「有効」のままでよい（Cloud Functions が電話番号付きの Firebase Auth ユーザーを作るため）。
 
 ### ② 招待 SMS（Twilio）
 
@@ -284,7 +278,6 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 | 箇所 | 設定場所 | 影響 |
 | --- | --- | --- |
 | アプリの配信 | Firebase Console > Hosting > カスタムドメイン | 独自ドメインでアプリを開けるようにする |
-| SMS ログイン（reCAPTCHA） | Firebase Console > Authentication > 設定 > 承認済みドメイン | 未登録のドメインでは、認証コードを送るときにエラーになる |
 | 招待 SMS・招待メールのリンク | `functions/.env.<プロジェクトID>` の `APP_BASE_URL` | リンクのドメインになる |
 | パスキー（WebAuthn） | 同じく `APP_BASE_URL`（origin と RP ID をここから作る。`functions/src/webauthn.ts`） | この値と違うドメインでは、パスキーの登録もログインもできない |
 | API キーの制限（設定している場合） | Google Cloud Console > API とサービス > 認証情報 | 許可されていないドメインからは、Firebase への接続が拒否される |
@@ -430,9 +423,8 @@ npm run deploy
 | `stamps:check` で止まる | `npm run stamps:sync` で取り込み、差分をコミットしてから再実行する |
 | `Secret ... not found`／シークレットの権限エラー | `npm run deploy:init` を一度実行するか、Twilio のシークレットを手動で設定する |
 | `Permission denied`／API が有効でない | 数分待って再実行する。解決しなければ、ログインしているアカウントのロールを確認する |
-| ログインの認証コードの SMS が届かない | [SMS 機能を有効にする](#sms-機能を有効にする) の①を確認する（SMS リージョン ポリシー・承認済みドメイン・テスト用の電話番号） |
+| ログイン・参加の認証コードの SMS が届かない | [SMS 機能を有効にする](#sms-機能を有効にする) の②（Twilio）を確認する。Cloud Functions のログ（`sendLoginCode`・`sendJoinCode`）にエラーが出ていないかも見る |
 | 招待 SMS が届かない | 同じく②を確認する（Cloud Functions のログと Twilio のログ） |
 | 独自ドメインが「接続済み」にならない | `dig NS example.jp` のネームサーバーが `0x.dnsv.jp` か、お名前.com に古い A・AAAA・CNAME や URL 転送が残っていないか、CAA で証明書の発行元が拒否されていないかを確認する（[独自ドメインへの切り替え](#独自ドメインへの切り替え)の手順 3） |
-| 独自ドメインで `auth/unauthorized-domain` や reCAPTCHA のエラーが出る | 承認済みドメインに追加したか確認する（[独自ドメインへの切り替え](#独自ドメインへの切り替え)の手順 5） |
 | 独自ドメインでパスキーが使えない | `APP_BASE_URL` が新しいドメインになっているか、再デプロイしたかを確認する（同じく手順 6） |
 | `tsc` や `ng build` が失敗する | `node_modules` が古い可能性がある。`npm install && npm --prefix functions install` を実行し直す |

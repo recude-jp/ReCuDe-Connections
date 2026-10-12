@@ -16,7 +16,15 @@ export {
   setEmailLogin,
   removeEmail,
 } from './loginAccount';
-export { getMyInviteQr, regenerateInviteQr, createInvite, getInvitePreview, joinAsGuest } from './invites';
+export {
+  getMyInviteQr,
+  regenerateInviteQr,
+  createInvite,
+  getInvitePreview,
+  sendJoinCode,
+  verifyJoinCode,
+  joinAsGuest,
+} from './invites';
 export { getInviteRequestOptions, submitInviteRequest, decideInviteRequest } from './inviteRequests';
 export { createCommunity, updateCommunity, deleteCommunity } from './communities';
 export {

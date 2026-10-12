@@ -143,6 +143,11 @@ export class TalkRoom {
   private readonly roomKeyContext = computed<RoomKeyContext | null>(() => {
     const room = this.room();
     return room ? { id: room.id, memberIds: room.memberIds, keyEpoch: room.keyEpoch } : null;
+  }, {
+    // 新着でルームの文書が変わるたびに、配り直し・見直しをしないように。
+    equal: (a, b) =>
+      a === b ||
+      (!!a && !!b && a.id === b.id && a.keyEpoch === b.keyEpoch && a.memberIds.join() === b.memberIds.join()),
   });
 
   /** 復号した中身(メッセージID → 結果)。 */
@@ -268,10 +273,13 @@ export class TalkRoom {
     });
 
     // ルームを開いたら、今の世代の鍵をまだ持っていないメンバー(加わったばかり・鍵を作り直した人)に渡す。
-    effect(() => {
+    // 開いている間に、ほかのメンバーが鍵を作った(参加したばかりの人が鍵の設定を終えた)ときも、すぐ渡す。
+    effect((onCleanup) => {
       const context = this.roomKeyContext();
       if (context && this.e2ee.state() === 'ready') {
-        void this.e2ee.distributeRoomKey(context).catch(() => undefined);
+        const distribute = () => void this.e2ee.distributeRoomKey(context).catch(() => undefined);
+        distribute();
+        onCleanup(this.e2ee.watchPublicKeys(context.memberIds, distribute));
       }
     });
 

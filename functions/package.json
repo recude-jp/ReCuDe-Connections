@@ -16,7 +16,8 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "migrate:community-admins": "ts-node scripts/migrate-community-admins.ts",
-    "migrate:privacy": "ts-node scripts/migrate-privacy.ts"
+    "migrate:privacy": "ts-node scripts/migrate-privacy.ts",
+    "migrate:membership": "ts-node scripts/migrate-membership.ts"
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1149.0",

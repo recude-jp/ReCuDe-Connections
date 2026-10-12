@@ -144,6 +144,7 @@ async function setup(config: SetupConfig): Promise<void> {
     await db.doc(`tenants/${config.tenantId}/members/${memberId}`).set({
       displayName: config.adminName,
       roles: { recommender: true, admin: true },
+      membership: 'member',
       isActive: true,
       invitedBy: null,
       createdAt: FieldValue.serverTimestamp(),

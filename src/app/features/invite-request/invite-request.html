@@ -17,6 +17,10 @@
           ご申請ありがとうございます。事務局でご入力の内容を確認し、ご利用の条件を満たしていることを確かめたうえで、
           ご入力の電話番号あてに招待のご案内（SMS）をお送りします。
         </p>
+        <p>
+          SMSが届いたら、本文のリンクを開いてください。参加の画面で、<strong>申請のときに入力した電話番号</strong>を入力し、
+          SMSで届く6桁の認証コードを入れると、参加の手続きに進めます。
+        </p>
         <p class="muted">確認には数日かかることがあります。しばらくお待ちください。</p>
         <a routerLink="/about" class="button ghost">トップページへ戻る</a>
       </div>
@@ -76,7 +80,14 @@
             </label>
           </div>
 
-          <p class="question">在京同窓会の会員ですか？ <span class="required">必須</span></p>
+          <p class="question">
+            在京同窓会の会員ですか？
+            @if (kenjinkaiMember() === true) {
+              <span class="optional">任意</span>
+            } @else {
+              <span class="required">必須</span>
+            }
+          </p>
           <div class="choices">
             <label class="choice" [class.selected]="alumniMember() === true">
               <input type="radio" name="alumni" [checked]="alumniMember() === true" (change)="alumniMember.set(true)" />
@@ -89,7 +100,8 @@
           </div>
 
           @if (alumniMember() === true) {
-            <label for="alumniChoice">加入している在京同窓会 <span class="required">必須</span></label>
+            <label for="alumniChoice">加入している在京同窓会
+              <span [class]="kenjinkaiMember() === true ? 'optional' : 'required'">{{ kenjinkaiMember() === true ? '任意' : '必須' }}</span></label>
             <select id="alumniChoice" name="alumniChoice" [ngModel]="alumniChoice()" (ngModelChange)="alumniChoice.set($event)">
               <option value="" disabled>選んでください</option>
               @for (community of communities(); track community.id) {
@@ -137,6 +149,9 @@
         <button type="submit" class="button primary" [disabled]="!canSubmit()">
           {{ submitting() ? '送信しています...' : '申請する' }}
         </button>
+        @if (!notEligible() && missingItems().length) {
+          <p class="missing">申請するには、次を入力・選択してください: {{ missingItems().join('、') }}</p>
+        }
       </form>
     }
   </main>
