@@ -5,7 +5,7 @@ export const STAMP_PACK_DATA: StampPack[] = /* BEGIN DATA */ [
   {
     "packId": "komame",
     "name": "こまめ",
-    "version": 2,
+    "version": 3,
     "stamps": [
       {
         "id": "hihiin",
