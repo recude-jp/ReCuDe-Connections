@@ -1,42 +1,60 @@
 <section class="login-account">
   <h2>トークの暗号化</h2>
-  <div class="row">
-    <div class="row-head">
-      <span class="row-label">暗号鍵のパスフレーズ</span>
-      @if (state() === 'ready' && !editing()) {
-        <button type="button" class="link-button" (click)="start()">変更</button>
-      }
-    </div>
-    @switch (state()) {
-      @case ('ready') {
-        <p class="value muted">
-          トークのメッセージは、この端末で暗号化・復号しています。別の端末で使うときは、パスフレーズで暗号鍵を戻します。
-        </p>
-      }
-      @case ('loading') {
-        <p class="value muted">確認しています...</p>
-      }
-      @default {
-        <p class="value muted">
-          この端末では、まだ暗号鍵の準備ができていません。<a routerLink="/talk">トーク</a>を開くと準備できます。
-        </p>
-      }
-    }
-    @if (editing()) {
-      <form (ngSubmit)="save()">
-        <input name="current" type="password" autocomplete="current-password" placeholder="今のパスフレーズ"
-          [ngModel]="current()" (ngModelChange)="current.set($event)" />
-        <input name="next" type="password" autocomplete="new-password" [placeholder]="'新しいパスフレーズ（' + minLength + '文字以上）'"
-          [ngModel]="next()" (ngModelChange)="next.set($event)" />
-        <input name="confirmation" type="password" autocomplete="new-password" placeholder="新しいパスフレーズをもう一度"
-          [ngModel]="confirmation()" (ngModelChange)="confirmation.set($event)" />
-        <div class="actions">
-          <button type="submit" [disabled]="!canSave()">{{ busy() ? '変えています...' : '変える' }}</button>
-          <button type="button" class="link-button" [disabled]="busy()" (click)="editing.set(false)">キャンセル</button>
+  @switch (state()) {
+    @case ('ready') {
+      <p class="value muted">
+        トークのメッセージは、この端末で暗号化・復号しています。暗号鍵は、パスキーと回復コードで守っています。
+      </p>
+
+      <div class="row">
+        <div class="row-head">
+          <span class="row-label">回復コード</span>
+          @if (hasPasskeyBackup()) {
+            <button type="button" class="link-button" [disabled]="busy()" (click)="regenerateRecoveryCode()">作り直す</button>
+          }
         </div>
-      </form>
+        @if (newRecoveryCode(); as code) {
+          <p class="value"><strong>新しい回復コード（表示するのは今だけです）</strong></p>
+          <p class="value recovery-code">{{ code }}</p>
+          <p class="hint">この端末とは別の場所に保管してください。前の回復コードは使えなくなりました。</p>
+        } @else if (hasPasskeyBackup()) {
+          <p class="value muted">失くしたときは作り直せます（この端末のパスキーで確認します）。</p>
+        } @else {
+          <p class="value muted">回復コードを作り直すには、先にこの端末のパスキーでも暗号鍵を守ってください。</p>
+        }
+      </div>
+
+      <div class="row">
+        <div class="row-head">
+          <span class="row-label">この端末のパスキー</span>
+          @if (!addingPasskey()) {
+            <button type="button" class="link-button" [disabled]="busy()" (click)="addingPasskey.set(true)">パスキーでも守る</button>
+          }
+        </div>
+        @if (addingPasskey()) {
+          <form (ngSubmit)="addPasskey()">
+            <p class="hint">回復コードで暗号鍵を開いてから、この端末のパスキーで守ります（パスキーが無ければ登録します）。</p>
+            <input name="recoveryCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+              placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" [ngModel]="codeInput()" (ngModelChange)="codeInput.set($event)" />
+            <div class="actions">
+              <button type="submit" [disabled]="busy() || !codeInput().trim()">{{ busy() ? '確認しています...' : 'パスキーで守る' }}</button>
+              <button type="button" class="link-button" [disabled]="busy()" (click)="addingPasskey.set(false)">キャンセル</button>
+            </div>
+          </form>
+        } @else {
+          <p class="value muted">機種を変えたときに、パスキーで暗号鍵を戻せるようにします。</p>
+        }
+      </div>
     }
-  </div>
+    @case ('loading') {
+      <p class="value muted">確認しています...</p>
+    }
+    @default {
+      <p class="value muted">
+        この端末では、まだ暗号鍵の準備ができていません。<a routerLink="/talk">トーク</a>を開くと準備できます。
+      </p>
+    }
+  }
   @if (errorMessage()) {
     <p class="error">{{ errorMessage() }}</p>
   }

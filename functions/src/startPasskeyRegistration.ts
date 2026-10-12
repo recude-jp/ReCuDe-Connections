@@ -48,6 +48,9 @@ export const startPasskeyRegistration = onCall(async (request) => {
     attestationType: 'none',
     excludeCredentials,
     authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+    // パスキーの PRF(トークの暗号鍵を守るのに使う。SECURITY-DEVELOPMENT.md 6-3)を、登録のときから有効にしておく
+    // (Windows Hello など、登録のときに求めないと PRF を使えない認証器があるため)。
+    extensions: { prf: {} } as Record<string, unknown>,
   });
 
   const challenge: WebauthnChallenge = {

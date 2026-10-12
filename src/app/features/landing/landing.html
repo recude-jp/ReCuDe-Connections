@@ -19,7 +19,7 @@
       <p class="eyebrow">{{ organization() }}の会員ネットワーク</p>
       <h1>
         ふるさと岐阜が、<br />
-        東京での<em>本当のつながり</em>を<br class="sp" />つくる。
+        東京での<em>本当のつながり</em>を<br />つくる。
       </h1>
       <p class="lead">
         {{ serviceName() }}は、会員の紹介でしか入れない、岐阜にゆかりのある人だけのコミュニティです。
@@ -35,30 +35,11 @@
       </div>
     </div>
 
-    <!-- 人と人がつながる様子と、岐阜の山と清流をモチーフにした図 -->
-    <svg class="hero-art" viewBox="0 0 400 300" aria-hidden="true">
-      <path class="mountain far" d="M0 220 L70 150 L120 190 L190 110 L260 180 L310 140 L400 210 L400 300 L0 300 Z" />
-      <path class="mountain near" d="M0 250 L90 190 L150 230 L230 170 L300 225 L360 195 L400 220 L400 300 L0 300 Z" />
-      <path class="river" d="M-10 285 C 80 255, 140 290, 220 265 S 340 250, 410 270" />
-      <path class="river thin" d="M-10 296 C 90 275, 170 300, 250 282 S 350 270, 410 288" />
-      <g class="links">
-        <line x1="90" y1="70" x2="180" y2="40" />
-        <line x1="180" y1="40" x2="270" y2="80" />
-        <line x1="90" y1="70" x2="150" y2="120" />
-        <line x1="150" y1="120" x2="270" y2="80" />
-        <line x1="270" y1="80" x2="330" y2="40" />
-        <line x1="150" y1="120" x2="230" y2="140" />
-        <line x1="230" y1="140" x2="270" y2="80" />
-      </g>
-      <g class="nodes">
-        <circle cx="90" cy="70" r="11" />
-        <circle cx="180" cy="40" r="14" class="accent" />
-        <circle cx="270" cy="80" r="12" />
-        <circle cx="150" cy="120" r="10" />
-        <circle cx="330" cy="40" r="9" />
-        <circle cx="230" cy="140" r="9" class="accent" />
-      </g>
-    </svg>
+    <!-- 仲間が集まる様子のイラスト(Adobe Stock でライセンス取得済み) -->
+    <div class="hero-visual" aria-hidden="true">
+      <span class="hero-blob"></span>
+      <img class="hero-art" src="/landing/gifu-connect.webp" alt="" width="1000" height="846" fetchpriority="high" />
+    </div>
   </section>
 
   <!-- コンセプト: 不特定多数のSNSとの違い -->
@@ -68,6 +49,7 @@
       フォロワーの数や、知らない人からのメッセージに疲れていませんか。
       {{ serviceName() }}は、最初から「信頼できる人」だけが集まる場所です。
     </p>
+    <img class="concept-art" src="/landing/handshake-heart.webp" alt="" width="470" height="353" loading="lazy" />
     <div class="compare">
       <div class="compare-col other">
         <h3>ふつうのSNS</h3>
@@ -90,11 +72,12 @@
 
   <!-- 世代ごとの価値 -->
   <section class="generations">
-    <h2>あなたの今に合った、つながり方を。</h2>
+    <h2>あなたの今に合った、<br class="sp" />つながり方を。</h2>
     <div class="generation-cards">
       <article class="generation-card young">
+        <img class="generation-art" src="/landing/high-five.webp" alt="" width="560" height="297" loading="lazy" />
         <p class="age">20代・30代の方へ</p>
-        <h3>上京しても、ひとりじゃない。</h3>
+        <h3>上京しても、<br class="sp" />ひとりじゃない。</h3>
         <p>
           同じ高校の先輩、同じ町で育った同世代。東京で出会えるはずのなかった「地元の仲間」と、
           紹介でつながる安心感の中で気軽に話せます。仕事の相談も、休日の遊び仲間も、ここから。
@@ -106,6 +89,7 @@
         </ul>
       </article>
       <article class="generation-card senior">
+        <img class="generation-art" src="/landing/mentor.webp" alt="" width="543" height="407" loading="lazy" />
         <p class="age">30代・40代の方へ</p>
         <h3>人生を支える人脈を、ふるさとの縁から。</h3>
         <p>
@@ -126,32 +110,32 @@
     <h2>できること</h2>
     <div class="feature-grid">
       <div class="feature">
-        <span class="feature-icon"><fa-icon [icon]="icons.search" /></span>
+        <img class="feature-art" src="/landing/people-network.webp" alt="" width="412" height="460" loading="lazy" />
         <h3>共通点で探す</h3>
         <p>出身地・出身高校・部活動・趣味など、岐阜ならではの共通点から会員を探して、つながりを申し込めます。</p>
       </div>
       <div class="feature">
-        <span class="feature-icon"><fa-icon [icon]="icons.talk" /></span>
+        <img class="feature-art" src="/landing/chat.webp" alt="" width="440" height="324" loading="lazy" />
         <h3>トーク</h3>
         <p>1対1でもグループでも。写真・動画、オリジナルスタンプで、気軽にやりとりできます。</p>
       </div>
       <div class="feature">
-        <span class="feature-icon"><fa-icon [icon]="icons.group" /></span>
+        <img class="feature-art" src="/landing/globe-group.webp" alt="" width="440" height="363" loading="lazy" />
         <h3>グループ</h3>
         <p>釣り・スキー・同郷の集まりなど、気の合う仲間でグループをつくり、仲間を招いて輪を広げられます。</p>
       </div>
       <div class="feature">
-        <span class="feature-icon"><fa-icon [icon]="icons.school" /></span>
+        <img class="feature-art" src="/landing/puzzle-faces.webp" alt="" width="440" height="440" loading="lazy" />
         <h3>同窓会との連携</h3>
         <p>岐阜県内の高校の在京同窓会と連携。同窓会の仲間とも、県人会の会員とも、ひとつのアプリでつながれます。</p>
       </div>
       <div class="feature">
-        <span class="feature-icon"><fa-icon [icon]="icons.events" /></span>
+        <img class="feature-art" src="/landing/flag-person.webp" alt="" width="348" height="401" loading="lazy" />
         <h3>リアルイベント <span class="soon">準備中</span></h3>
         <p>オンラインで出会った仲間と、実際に会える場へ。会員が参加できるイベントの機能を準備しています。</p>
       </div>
       <div class="feature">
-        <span class="feature-icon"><fa-icon [icon]="icons.trust" /></span>
+        <img class="feature-art" src="/landing/heart-hands.webp" alt="" width="395" height="402" loading="lazy" />
         <h3>安心のしくみ</h3>
         <p>メッセージは暗号化され、トークの参加者だけが読めます。電話番号での本人確認と、パスキーでの安全なログイン。</p>
       </div>
@@ -169,7 +153,7 @@
       </p>
       <div class="privacy-grid">
         <article class="privacy-card">
-          <span class="privacy-icon"><fa-icon [icon]="icons.lock" /></span>
+          <span class="privacy-art"><img class="" src="/landing/shield-handshake.webp" alt="" width="432" height="407" loading="lazy" /></span>
           <h3>メッセージは暗号化。<br />読めるのはトークの参加者だけ。</h3>
           <p>
             メッセージや写真は、送る人の端末で暗号化してから届けます。読み解く鍵を持つのはトークの参加者の端末だけ。
@@ -177,7 +161,7 @@
           </p>
         </article>
         <article class="privacy-card">
-          <span class="privacy-icon"><fa-icon [icon]="icons.userShield" /></span>
+          <span class="privacy-art"><img class="" src="/landing/shield-person.webp" alt="" width="440" height="445" loading="lazy" /></span>
           <h3>個人情報は、<br />あなたの同意なしに公開しません。</h3>
           <p>
             電話番号やメールアドレスは、ほかの会員には表示されません。プロフィールの項目ごとに、誰に見せるかをあなたが選べます。
@@ -185,7 +169,7 @@
           </p>
         </article>
         <article class="privacy-card">
-          <span class="privacy-icon"><fa-icon [icon]="icons.trust" /></span>
+          <span class="privacy-art"><img class="" src="/landing/circle-handshake.webp" alt="" width="440" height="407" loading="lazy" /></span>
           <h3>閉じた信頼の輪の中だけで。</h3>
           <p>
             招待と事務局の確認を経た人だけが参加できるコミュニティです。プロフィールが検索エンジンやインターネット上に
@@ -202,21 +186,21 @@
     <p class="section-lead">{{ serviceName() }}は紹介制です。会員から招待を受けた方が参加できます。</p>
     <ol class="step-list">
       <li>
-        <span class="step-icon"><fa-icon [icon]="icons.invite" /></span>
+        <img class="step-art" src="/landing/heart-hand.webp" alt="" width="400" height="325" loading="lazy" />
         <div>
           <h3>招待を受け取る</h3>
           <p>会員から届いた招待リンク（SMS・メール）を開くか、会員のQRコードを読み取ります。</p>
         </div>
       </li>
       <li>
-        <span class="step-icon"><fa-icon [icon]="icons.guest" /></span>
+        <img class="step-art" src="/landing/connect-friends.webp" alt="" width="400" height="279" loading="lazy" />
         <div>
           <h3>ゲストとして参加</h3>
           <p>電話番号で確認し、お名前とログインIDを決めるだけ。招待してくれた方と、すぐにトークができます。</p>
         </div>
       </li>
       <li>
-        <span class="step-icon"><fa-icon [icon]="icons.member" /></span>
+        <img class="step-art" src="/landing/growth.webp" alt="" width="400" height="300" loading="lazy" />
         <div>
           <h3>正規の会員へ</h3>
           <p>マイページの「会員登録」から申請し、事務局の審査を経て正規の会員に。すべての機能が使えるようになります。</p>
@@ -274,6 +258,7 @@
 
   <!-- 最後の呼びかけ -->
   <section class="closing">
+    <img class="closing-art" src="/landing/team-climb.webp" alt="" width="640" height="345" loading="lazy" />
     <h2>ふるさとの縁を、<br class="sp" />これからの力に。</h2>
     <p>{{ serviceName() }}で、信頼できる仲間とつながりましょう。</p>
     <div class="hero-actions center">

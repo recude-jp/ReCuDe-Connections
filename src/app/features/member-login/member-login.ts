@@ -12,7 +12,7 @@ import { PasskeyService } from '../../core/services/passkey.service';
 import { PinService } from '../../core/services/pin.service';
 import { LoginChannel, LoginChannels, LoginService } from '../../core/services/login.service';
 import { PinInput } from '../../shared/pin-input/pin-input';
-import { toErrorMessage, toPasskeyErrorMessage } from '../../core/utils/errors';
+import { isAlreadyRegisteredError, toErrorMessage, toPasskeyErrorMessage } from '../../core/utils/errors';
 import { environment } from '../../../environments/environment';
 
 /**
@@ -251,6 +251,14 @@ export class MemberLogin {
       this.passkey.rememberPasskeyFor([this.identifier().trim()]);
       await this.finishSetup();
     } catch (err) {
+      // この端末にはすでにパスキーがある(別の端末で登録したものが同期されていることもある)。
+      // 次回からそれでログインできるよう記録して、そのまま進む。
+      if (isAlreadyRegisteredError(err)) {
+        this.passkey.markLocalPasskeyHint('member', true);
+        this.passkey.rememberPasskeyFor([this.identifier().trim()]);
+        await this.finishSetup();
+        return;
+      }
       this.errorMessage.set(toPasskeyErrorMessage(err));
     } finally {
       this.loading.set(false);

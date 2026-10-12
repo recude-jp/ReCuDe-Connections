@@ -2,7 +2,8 @@
  * エンドツーエンド暗号化の暗号処理(WebCrypto だけを使う。Firebase には依存しない)。
  * 設計は SECURITY-DEVELOPMENT.md 6章。
  *
- * - 会員の鍵ペア: ECDH P-256。秘密鍵は端末に「取り出せない CryptoKey」として置き、パスフレーズで暗号化したバックアップを持つ。
+ * - 会員の鍵ペア: ECDH P-256。秘密鍵は端末に「取り出せない CryptoKey」として置く。秘密鍵の控え(バックアップ)は、
+ *   パスキーの PRF(端末の生体認証で取り出せる秘密の値)と、回復コードの2通りで暗号化して持つ。
  * - ルームの鍵: AES-GCM 256bit。受け取る人ごとに、その場で作る鍵ペアと受け取る人の公開鍵から ECDH → HKDF で鍵を作って包む。
  * - メッセージ・画像: ルームの鍵で AES-GCM。追加認証データ(AAD)で、暗号文を別のメッセージ・ルームに移せないようにする。
  */
@@ -10,11 +11,8 @@
 /** 暗号文の形式の版(変えたときに古いものと区別する)。 */
 export const E2EE_VERSION = 1;
 
-/** パスフレーズから鍵を作るときの PBKDF2 の繰り返し回数(OWASP の推奨値に合わせる)。 */
+/** 回復コードから鍵を作るときの PBKDF2 の繰り返し回数(OWASP の推奨値に合わせる)。 */
 export const PBKDF2_ITERATIONS = 600_000;
-
-/** パスフレーズの最小文字数。 */
-export const PASSPHRASE_MIN_LENGTH = 10;
 
 const ECDH: EcKeyGenParams = { name: 'ECDH', namedCurve: 'P-256' };
 const encoder = new TextEncoder();
@@ -86,7 +84,43 @@ export function importPublicKey(jwk: JsonWebKey): Promise<CryptoKey> {
   return crypto.subtle.importKey('jwk', jwk, ECDH, true, []);
 }
 
-// ---- パスフレーズによるバックアップ ----
+// ---- 回復コード ----
+
+/** 回復コードに使う文字(Crockford の Base32。読み間違えやすい I・L・O・U を使わない)。 */
+const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+/**
+ * 回復コード(120bit のランダムな値。4文字ずつハイフンで区切った24文字。例: 7K3Q-…)。
+ * 端末をすべて失ったときや、パスキーが引き継がれない機種に変えたときに、暗号鍵を戻すのに使う。
+ */
+export function generateRecoveryCode(): string {
+  const bytes = randomBytes(15);
+  let bits = 0;
+  let value = 0;
+  let out = '';
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      out += RECOVERY_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  return out.match(/.{4}/g)!.join('-');
+}
+
+/** 入力された回復コードを、比べられる形にする(小文字・空白・ハイフン、読み間違えやすい文字を直す)。 */
+export function normalizeRecoveryCode(input: string): string {
+  const cleaned = input
+    .normalize('NFKC')
+    .toUpperCase()
+    .replace(/[\s-]/g, '')
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1');
+  return cleaned.match(/.{1,4}/g)?.join('-') ?? '';
+}
+
+// ---- 秘密の値(回復コード)によるバックアップ ----
 
 export interface KeyBackup {
   v: number;
@@ -98,8 +132,8 @@ export interface KeyBackup {
   ct: string;
 }
 
-async function deriveBackupKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<CryptoKey> {
-  const material = await crypto.subtle.importKey('raw', encoder.encode(passphrase.normalize('NFKC')), 'PBKDF2', false, [
+async function deriveBackupKey(secret: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<CryptoKey> {
+  const material = await crypto.subtle.importKey('raw', encoder.encode(secret.normalize('NFKC')), 'PBKDF2', false, [
     'deriveKey',
   ]);
   return crypto.subtle.deriveKey(
@@ -111,11 +145,11 @@ async function deriveBackupKey(passphrase: string, salt: Uint8Array<ArrayBuffer>
   );
 }
 
-/** 秘密鍵(JWK)をパスフレーズで暗号化する。 */
-export async function encryptKeyBackup(keyId: string, privateJwk: JsonWebKey, passphrase: string): Promise<KeyBackup> {
+/** 秘密鍵(JWK)を秘密の値(回復コード)で暗号化する。 */
+export async function encryptKeyBackup(keyId: string, privateJwk: JsonWebKey, secret: string): Promise<KeyBackup> {
   const salt = randomBytes(16);
   const iv = randomBytes(12);
-  const key = await deriveBackupKey(passphrase, salt, PBKDF2_ITERATIONS);
+  const key = await deriveBackupKey(secret, salt, PBKDF2_ITERATIONS);
   const ct = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv, additionalData: encoder.encode(`backup/${keyId}`) },
     key,
@@ -124,9 +158,9 @@ export async function encryptKeyBackup(keyId: string, privateJwk: JsonWebKey, pa
   return { v: E2EE_VERSION, keyId, salt: toBase64(salt), iterations: PBKDF2_ITERATIONS, iv: toBase64(iv), ct: toBase64(ct) };
 }
 
-/** バックアップをパスフレーズで復号し、秘密鍵(JWK)を返す。パスフレーズが違うときは例外(WrongPassphraseError)。 */
-export async function decryptKeyBackup(backup: KeyBackup, passphrase: string): Promise<JsonWebKey> {
-  const key = await deriveBackupKey(passphrase, fromBase64(backup.salt), backup.iterations);
+/** バックアップを秘密の値(回復コード)で復号し、秘密鍵(JWK)を返す。違うときは例外(WrongSecretError)。 */
+export async function decryptKeyBackup(backup: KeyBackup, secret: string): Promise<JsonWebKey> {
+  const key = await deriveBackupKey(secret, fromBase64(backup.salt), backup.iterations);
   try {
     const plain = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: fromBase64(backup.iv), additionalData: encoder.encode(`backup/${backup.keyId}`) },
@@ -135,15 +169,70 @@ export async function decryptKeyBackup(backup: KeyBackup, passphrase: string): P
     );
     return JSON.parse(decoder.decode(plain)) as JsonWebKey;
   } catch {
-    throw new WrongPassphraseError();
+    throw new WrongSecretError();
   }
 }
 
-export class WrongPassphraseError extends Error {
+export class WrongSecretError extends Error {
   constructor() {
-    super('パスフレーズが正しくありません。');
-    this.name = 'WrongPassphraseError';
+    super('回復コードが正しくありません。');
+    this.name = 'WrongSecretError';
   }
+}
+
+// ---- パスキー(PRF)によるバックアップ ----
+
+/** パスキーで守った秘密鍵の控え。 */
+export interface PasskeyKeyWrap {
+  v: number;
+  keyId: string;
+  /** 守ったパスキーの credentialId(base64url)。 */
+  credentialId: string;
+  iv: string;
+  ct: string;
+}
+
+/**
+ * パスキーの PRF に渡す入力(会員ごとに決まった値。保存しない)。PRF は、同じパスキー・同じ入力なら同じ値を返す。
+ */
+export async function prfSaltFor(tenantId: string, memberId: string): Promise<Uint8Array<ArrayBuffer>> {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(`recude-e2ee-prf/${tenantId}/${memberId}`)));
+}
+
+async function deriveKeyFromPrf(prfOutput: ArrayBuffer, keyId: string): Promise<CryptoKey> {
+  const material = await crypto.subtle.importKey('raw', prfOutput, 'HKDF', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: encoder.encode(`passkey-wrap/${keyId}`) },
+    material,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+/** 秘密鍵(JWK)を、パスキーの PRF の値で暗号化する。 */
+export async function wrapKeyWithPrf(
+  keyId: string,
+  credentialId: string,
+  privateJwk: JsonWebKey,
+  prfOutput: ArrayBuffer,
+): Promise<PasskeyKeyWrap> {
+  const iv = randomBytes(12);
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv, additionalData: encoder.encode(`passkey/${keyId}/${credentialId}`) },
+    await deriveKeyFromPrf(prfOutput, keyId),
+    encoder.encode(JSON.stringify(privateJwk)),
+  );
+  return { v: E2EE_VERSION, keyId, credentialId, iv: toBase64(iv), ct: toBase64(ct) };
+}
+
+export async function unwrapKeyWithPrf(wrap: PasskeyKeyWrap, prfOutput: ArrayBuffer): Promise<JsonWebKey> {
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: fromBase64(wrap.iv), additionalData: encoder.encode(`passkey/${wrap.keyId}/${wrap.credentialId}`) },
+    await deriveKeyFromPrf(prfOutput, wrap.keyId),
+    fromBase64(wrap.ct),
+  );
+  return JSON.parse(decoder.decode(plain)) as JsonWebKey;
 }
 
 // ---- ルームの鍵 ----

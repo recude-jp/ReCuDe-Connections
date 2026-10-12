@@ -1,8 +1,10 @@
 import { Injectable, inject, signal } from '@angular/core';
 import {
   Firestore,
+  collection,
   doc,
   getDoc,
+  getDocs,
   runTransaction,
   serverTimestamp,
   setDoc,
@@ -10,9 +12,11 @@ import {
 } from '@angular/fire/firestore';
 import { distinctUntilChanged, map } from 'rxjs';
 import { AuthService } from './auth.service';
+import { PasskeyService } from './passkey.service';
 import {
   EncryptedPayload,
   KeyBackup,
+  PasskeyKeyWrap,
   WrappedRoomKey,
   decryptBytes,
   decryptJson,
@@ -21,16 +25,28 @@ import {
   encryptJson,
   encryptKeyBackup,
   generateMemberKeys,
+  generateRecoveryCode,
   generateRoomKey,
   importPrivateKey,
+  normalizeRecoveryCode,
+  prfSaltFor,
+  unwrapKeyWithPrf,
   unwrapRoomKey,
+  wrapKeyWithPrf,
   wrapRoomKey,
 } from '../crypto/e2ee-crypto';
+import { PrfUnavailableError, evaluatePrf } from '../crypto/e2ee-passkey';
 import { StoredMemberKey, loadMemberKey, saveMemberKey } from '../crypto/key-store';
+import { isAlreadyRegisteredError } from '../utils/errors';
+
+/** 回復コードで暗号化した秘密鍵の控えのドキュメントID(members/[memberId]/e2ee/recovery)。 */
+const RECOVERY_DOC_ID = 'recovery';
+/** パスキーで暗号化した秘密鍵の控えのドキュメントIDの頭(passkey-[credentialId の SHA-256 の先頭40桁])。 */
+const PASSKEY_DOC_PREFIX = 'passkey-';
 
 /**
- * loading: 確認中。needs-setup: 鍵がまだ無い(パスフレーズを決めて作る)。needs-restore: この端末に鍵が無い
- * (パスフレーズでバックアップから戻す)。ready: 暗号化・復号できる。error: 確認できなかった。
+ * loading: 確認中。needs-setup: 鍵がまだ無い(作って、回復コードとパスキーで守る)。needs-restore: この端末に鍵が無い
+ * (パスキーか回復コードで控えから戻す)。ready: 暗号化・復号できる。error: 確認できなかった。
  */
 export type E2eeState = 'loading' | 'needs-setup' | 'needs-restore' | 'ready' | 'error';
 
@@ -46,6 +62,19 @@ export interface RoomKeyContext {
   memberIds: string[];
   /** ルームの鍵の今の世代(未設定は0)。 */
   keyEpoch?: number;
+}
+
+/** 作っている途中・回復コードで戻した途中の鍵(保存して使い始める前)。 */
+interface PendingKeys {
+  kind: 'setup' | 'restore';
+  keyId: string;
+  privateJwk: JsonWebKey;
+  privateKey: CryptoKey;
+  publicJwk: JsonWebKey;
+  /** kind が setup のとき、作った回復コード。 */
+  recoveryCode?: string;
+  /** この端末のパスキーで守った控え(finishPending で保存する)。 */
+  passkeyWraps: PasskeyKeyWrap[];
 }
 
 /** 鍵がまだ届いていない(ほかのメンバーが包んで渡すのを待っている)。 */
@@ -64,11 +93,16 @@ export class RoomKeyPendingError extends Error {
 export class E2eeService {
   private readonly firestore = inject(Firestore);
   private readonly auth = inject(AuthService);
+  private readonly passkeys = inject(PasskeyService);
 
   readonly state = signal<E2eeState>('loading');
+  /** 今の鍵を、パスキーで守った控えがあるか(新しい端末で、パスキーで戻せるか)。 */
+  readonly hasPasskeyBackup = signal(false);
 
   private me: { tenantId: string; memberId: string } | null = null;
   private key: StoredMemberKey | null = null;
+  private pending: PendingKeys | null = null;
+  private passkeyWraps: PasskeyKeyWrap[] = [];
   /** ルームの鍵(`roomId/世代` → 鍵)。届いていないものは入れない。 */
   private readonly roomKeys = new Map<string, Promise<CryptoKey | null>>();
   private readonly publicKeys = new Map<string, Promise<MemberPublicKey | null>>();
@@ -86,8 +120,19 @@ export class E2eeService {
     return doc(this.firestore, `tenants/${this.me!.tenantId}/memberKeys/${memberId}`);
   }
 
-  private backupRef() {
-    return doc(this.firestore, `tenants/${this.me!.tenantId}/members/${this.me!.memberId}/e2ee/backup`);
+  /** 秘密鍵の控え(回復コード・パスキーで暗号化したもの)を置く場所。本人だけが読み書きできる。 */
+  private backupsRef() {
+    return collection(this.firestore, `tenants/${this.me!.tenantId}/members/${this.me!.memberId}/e2ee`);
+  }
+
+  private recoveryRef() {
+    return doc(this.backupsRef(), RECOVERY_DOC_ID);
+  }
+
+  private async passkeyWrapRef(credentialId: string) {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(credentialId)));
+    const hex = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+    return doc(this.backupsRef(), `${PASSKEY_DOC_PREFIX}${hex}`);
   }
 
   private epochRef(roomId: string, epoch: number) {
@@ -101,87 +146,223 @@ export class E2eeService {
   private async init(me: { tenantId: string; memberId: string } | null): Promise<void> {
     this.me = me;
     this.key = null;
+    this.pending = null;
+    this.passkeyWraps = [];
     this.roomKeys.clear();
     this.publicKeys.clear();
+    this.hasPasskeyBackup.set(false);
+    this.state.set('loading');
     if (!me) {
-      this.state.set('loading');
       return;
     }
-    this.state.set('loading');
     try {
-      const [local, publicSnap, backupSnap] = await Promise.all([
+      const [local, publicSnap] = await Promise.all([
         loadMemberKey(me.tenantId, me.memberId).catch(() => null),
         getDoc(this.memberKeyRef(me.memberId)),
-        getDoc(this.backupRef()),
       ]);
       const published = publicSnap.data() as MemberPublicKey | undefined;
       if (local && published && published.keyId === local.keyId) {
         this.key = local;
         this.state.set('ready');
-      } else {
-        this.state.set(backupSnap.exists() ? 'needs-restore' : 'needs-setup');
+        return;
       }
+      const backups = await this.loadBackups(published?.keyId);
+      this.state.set(published && (backups.recovery || backups.passkeys.length > 0) ? 'needs-restore' : 'needs-setup');
     } catch {
       this.state.set('error');
     }
   }
 
-  /** 初めて使うとき: 鍵ペアを作り、パスフレーズで暗号化したバックアップと公開鍵を保存する。 */
-  async setup(passphrase: string): Promise<void> {
-    await this.createKeys(passphrase);
-  }
-
-  /** パスフレーズを忘れたとき: 鍵を作り直す(これまでの会話は読めなくなる)。 */
-  async reset(passphrase: string): Promise<void> {
-    await this.createKeys(passphrase);
-  }
-
-  private async createKeys(passphrase: string): Promise<void> {
-    const me = this.requireMe();
-    const generated = await generateMemberKeys();
-    const backup = await encryptKeyBackup(generated.keyId, generated.privateJwk, passphrase);
-    const batch = writeBatch(this.firestore);
-    batch.set(this.memberKeyRef(me.memberId), {
-      publicKey: generated.publicJwk,
-      keyId: generated.keyId,
-      updatedAt: serverTimestamp(),
-    });
-    batch.set(this.backupRef(), { ...backup, updatedAt: serverTimestamp() });
-    await batch.commit();
-    await this.useKey({ keyId: generated.keyId, privateKey: generated.privateKey });
-  }
-
-  /** 新しい端末: パスフレーズでバックアップから鍵を戻す。 */
-  async restore(passphrase: string): Promise<void> {
-    const me = this.requireMe();
-    const backup = (await getDoc(this.backupRef())).data() as KeyBackup | undefined;
-    if (!backup) {
-      throw new Error('鍵のバックアップが見つかりません。');
+  /** 今の鍵(keyId)の控えを読む(古い鍵の控えは使わない)。 */
+  private async loadBackups(keyId: string | undefined): Promise<{ recovery: KeyBackup | null; passkeys: PasskeyKeyWrap[] }> {
+    const snap = await getDocs(this.backupsRef());
+    let recovery: KeyBackup | null = null;
+    const passkeys: PasskeyKeyWrap[] = [];
+    for (const backupDoc of snap.docs) {
+      const data = backupDoc.data() as (KeyBackup | PasskeyKeyWrap) & { keyId: string };
+      if (!keyId || data.keyId !== keyId) {
+        continue;
+      }
+      if (backupDoc.id === RECOVERY_DOC_ID) {
+        recovery = data as KeyBackup;
+      } else if (backupDoc.id.startsWith(PASSKEY_DOC_PREFIX)) {
+        passkeys.push(data as PasskeyKeyWrap);
+      }
     }
-    const jwk = await decryptKeyBackup(backup, passphrase);
-    // バックアップの鍵が公開している鍵と違う(別の端末で作り直した途中など)ときは、バックアップの鍵に揃える。
-    const published = (await getDoc(this.memberKeyRef(me.memberId))).data() as MemberPublicKey | undefined;
-    if (published?.keyId !== backup.keyId) {
-      const { kty, crv, x, y } = jwk;
-      await setDoc(this.memberKeyRef(me.memberId), {
-        publicKey: { kty, crv, x, y },
-        keyId: backup.keyId,
-        updatedAt: serverTimestamp(),
-      });
-    }
-    await this.useKey({ keyId: backup.keyId, privateKey: await importPrivateKey(jwk) });
+    this.passkeyWraps = passkeys;
+    this.hasPasskeyBackup.set(passkeys.length > 0);
+    return { recovery, passkeys };
   }
 
-  /** パスフレーズを変える(今のパスフレーズでバックアップを開き、新しいパスフレーズで包み直す)。 */
-  async changePassphrase(current: string, next: string): Promise<void> {
+  /**
+   * 初めて使うとき(または、控えを失って作り直すとき): 鍵ペアと回復コードを作る(まだ保存しない)。
+   * 回復コードを保管してもらったら、protectPendingWithPasskey(任意)と finishPending を呼ぶ。
+   */
+  async beginSetup(): Promise<string> {
     this.requireMe();
-    const backup = (await getDoc(this.backupRef())).data() as KeyBackup | undefined;
-    if (!backup) {
-      throw new Error('鍵のバックアップが見つかりません。');
+    const generated = await generateMemberKeys();
+    const recoveryCode = generateRecoveryCode();
+    this.pending = {
+      kind: 'setup',
+      keyId: generated.keyId,
+      privateJwk: generated.privateJwk,
+      privateKey: generated.privateKey,
+      publicJwk: generated.publicJwk,
+      recoveryCode,
+      passkeyWraps: [],
+    };
+    return recoveryCode;
+  }
+
+  /** 新しい端末: 回復コードで鍵を戻す(まだ使い始めない。パスキーでも守るかを選んでから finishPending を呼ぶ)。 */
+  async beginRestoreWithRecoveryCode(code: string): Promise<void> {
+    const me = this.requireMe();
+    const published = (await getDoc(this.memberKeyRef(me.memberId))).data() as MemberPublicKey | undefined;
+    const { recovery } = await this.loadBackups(published?.keyId);
+    if (!published || !recovery) {
+      throw new Error('暗号鍵の控えが見つかりません。');
     }
-    const jwk = await decryptKeyBackup(backup, current);
-    const rewrapped = await encryptKeyBackup(backup.keyId, jwk, next);
-    await setDoc(this.backupRef(), { ...rewrapped, updatedAt: serverTimestamp() });
+    const privateJwk = await decryptKeyBackup(recovery, normalizeRecoveryCode(code));
+    this.pending = {
+      kind: 'restore',
+      keyId: recovery.keyId,
+      privateJwk,
+      privateKey: await importPrivateKey(privateJwk),
+      publicJwk: published.publicKey,
+      passkeyWraps: [],
+    };
+  }
+
+  /** 新しい端末: パスキー(引き継がれたもの)で鍵を戻して、使い始める。 */
+  async restoreWithPasskey(): Promise<void> {
+    const me = this.requireMe();
+    const published = (await getDoc(this.memberKeyRef(me.memberId))).data() as MemberPublicKey | undefined;
+    const { passkeys } = await this.loadBackups(published?.keyId);
+    if (passkeys.length === 0) {
+      throw new PrfUnavailableError();
+    }
+    const { credentialId, output } = await evaluatePrf(
+      await prfSaltFor(me.tenantId, me.memberId),
+      passkeys.map((w) => w.credentialId),
+    );
+    const wrap = passkeys.find((w) => w.credentialId === credentialId);
+    if (!wrap) {
+      throw new PrfUnavailableError();
+    }
+    const privateJwk = await unwrapKeyWithPrf(wrap, output);
+    await this.useKey({ keyId: wrap.keyId, privateKey: await importPrivateKey(privateJwk) });
+  }
+
+  /**
+   * 作っている途中(または回復コードで戻した)鍵を、この端末のパスキーでも守る。パスキーが無ければ登録する
+   * (登録したパスキーはログインにも使える)。この端末に登録済みなら、そのパスキーを使う。
+   */
+  async protectPendingWithPasskey(): Promise<void> {
+    const me = this.requireMe();
+    const pending = this.pending;
+    if (!pending) {
+      throw new Error('暗号鍵の準備が始まっていません。');
+    }
+    const salt = await prfSaltFor(me.tenantId, me.memberId);
+    let result: { credentialId: string; output: ArrayBuffer };
+    try {
+      const credentialId = await this.passkeys.register('member');
+      this.passkeys.markLocalPasskeyHint('member', true);
+      result = await evaluatePrf(salt, [credentialId]);
+    } catch (err) {
+      // この端末にはすでにパスキーがある(同じ認証器には重ねて登録できない)ときは、それを使う。
+      if (!isAlreadyRegisteredError(err)) {
+        throw err;
+      }
+      const ids = (await this.passkeys.list()).map((c) => c.credentialId);
+      result = await evaluatePrf(salt, ids);
+    }
+    pending.passkeyWraps.push(await wrapKeyWithPrf(pending.keyId, result.credentialId, pending.privateJwk, result.output));
+  }
+
+  /** 準備した鍵と控えを保存して、使い始める。 */
+  async finishPending(): Promise<void> {
+    const me = this.requireMe();
+    const pending = this.pending;
+    if (!pending) {
+      throw new Error('暗号鍵の準備が始まっていません。');
+    }
+    const batch = writeBatch(this.firestore);
+    if (pending.kind === 'setup') {
+      batch.set(this.memberKeyRef(me.memberId), { publicKey: pending.publicJwk, keyId: pending.keyId, updatedAt: serverTimestamp() });
+      const recovery = await encryptKeyBackup(pending.keyId, pending.privateJwk, pending.recoveryCode!);
+      batch.set(this.recoveryRef(), { ...recovery, updatedAt: serverTimestamp() });
+      // 作り直す前の鍵の控え(古いパスフレーズの控えを含む)は、もう使えないので消す。
+      for (const old of (await getDocs(this.backupsRef())).docs) {
+        if (old.id !== RECOVERY_DOC_ID) {
+          batch.delete(old.ref);
+        }
+      }
+    }
+    for (const wrap of pending.passkeyWraps) {
+      batch.set(await this.passkeyWrapRef(wrap.credentialId), { ...wrap, updatedAt: serverTimestamp() });
+    }
+    await batch.commit();
+    this.pending = null;
+    await this.useKey({ keyId: pending.keyId, privateKey: pending.privateKey });
+    if (pending.passkeyWraps.length > 0) {
+      this.hasPasskeyBackup.set(true);
+    }
+  }
+
+  cancelPending(): void {
+    this.pending = null;
+  }
+
+  /**
+   * 回復コードを作り直す(前のコードは使えなくなる)。鍵の中身が要るため、この端末のパスキー(控えのあるもの)で開く。
+   */
+  async regenerateRecoveryCode(): Promise<string> {
+    const me = this.requireMe();
+    const key = this.requireKey();
+    const { passkeys } = await this.loadBackups(key.keyId);
+    if (passkeys.length === 0) {
+      throw new PrfUnavailableError();
+    }
+    const { credentialId, output } = await evaluatePrf(
+      await prfSaltFor(me.tenantId, me.memberId),
+      passkeys.map((w) => w.credentialId),
+    );
+    const wrap = passkeys.find((w) => w.credentialId === credentialId);
+    if (!wrap) {
+      throw new PrfUnavailableError();
+    }
+    const privateJwk = await unwrapKeyWithPrf(wrap, output);
+    const recoveryCode = generateRecoveryCode();
+    const recovery = await encryptKeyBackup(key.keyId, privateJwk, recoveryCode);
+    await setDoc(this.recoveryRef(), { ...recovery, updatedAt: serverTimestamp() });
+    return recoveryCode;
+  }
+
+  /** この端末のパスキーでも鍵を守る(回復コードで鍵を開いて、パスキーで包み直す)。 */
+  async addPasskeyWithRecoveryCode(code: string): Promise<void> {
+    const me = this.requireMe();
+    const key = this.requireKey();
+    const { recovery } = await this.loadBackups(key.keyId);
+    if (!recovery) {
+      throw new Error('暗号鍵の控えが見つかりません。');
+    }
+    const privateJwk = await decryptKeyBackup(recovery, normalizeRecoveryCode(code));
+    const published = (await getDoc(this.memberKeyRef(me.memberId))).data() as MemberPublicKey;
+    this.pending = {
+      kind: 'restore',
+      keyId: key.keyId,
+      privateJwk,
+      privateKey: key.privateKey,
+      publicJwk: published.publicKey,
+      passkeyWraps: [],
+    };
+    try {
+      await this.protectPendingWithPasskey();
+      await this.finishPending();
+    } finally {
+      this.pending = null;
+    }
   }
 
   private async useKey(key: StoredMemberKey): Promise<void> {

@@ -72,9 +72,12 @@ export class InviteHome {
 
   private async show(qr: InviteQr): Promise<void> {
     // QRコードのライブラリは、この画面を開いたときだけ読み込む(初回の読み込みを小さく保つため)。
-    const { toString } = await import('qrcode');
+    // qrcode は CommonJS のライブラリのため、本番ビルドでは関数が default の中に入る(開発ビルドでは名前付きで取り出せる)。
+    // 名前付きの toString を取り出すと本番で undefined になるため、どちらの形でも動くようにする。
+    const module = await import('qrcode');
+    const qrcode = module.default ?? module;
     // 誤り訂正 H は約30%まで欠けても読める。中心のロゴ(QRコードの面積の約5%)で隠れる分を補う。
-    const svg = await toString(qr.url, { type: 'svg', errorCorrectionLevel: 'H', margin: 1, width: 240 });
+    const svg = await qrcode.toString(qr.url, { type: 'svg', errorCorrectionLevel: 'H', margin: 1, width: 240 });
     this.qr.set(qr);
     this.qrImage.set(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
   }

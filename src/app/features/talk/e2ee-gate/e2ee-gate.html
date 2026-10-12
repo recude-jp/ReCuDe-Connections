@@ -1,5 +1,5 @@
 <section class="gate">
-  <span class="icon"><fa-icon [icon]="lockIcon" /></span>
+  <span class="icon"><fa-icon [icon]="icons.lock" /></span>
 
   @switch (state()) {
     @case ('loading') {
@@ -9,67 +9,107 @@
       <h2>暗号鍵を確認できませんでした</h2>
       <p class="muted">通信の状態を確かめて、ページを読み込み直してください。</p>
     }
-    @case ('needs-restore') {
-      @if (!resetting()) {
-        <h2>この端末で、トークの暗号鍵を戻します</h2>
-        <p>
-          トークのメッセージは暗号化されていて、読めるのはあなたの端末だけです。
-          この端末で読むには、暗号鍵を作ったときに決めたパスフレーズを入力してください。
-        </p>
-        <form (ngSubmit)="restore()">
-          <label for="restorePassphrase">パスフレーズ</label>
-          <input id="restorePassphrase" name="restorePassphrase" type="password" autocomplete="current-password"
-            [ngModel]="passphrase()" (ngModelChange)="passphrase.set($event)" />
-          <button type="submit" [disabled]="busy() || !passphrase()">
-            {{ busy() ? '確認しています...' : '暗号鍵を戻す' }}
+    @default {
+      @switch (step()) {
+        @case ('intro') {
+          <h2>トークの暗号化を始めます</h2>
+          <p>
+            トークのメッセージは、あなたの端末で暗号化してから届けます。読めるのはトークの参加者だけで、
+            運営者や事務局も読めません。
+          </p>
+          <p>
+            そのための暗号鍵を、<strong>この端末のパスキー</strong>（指紋・顔認証）と<strong>回復コード</strong>で守ります。
+            同じ系統の機種に変えたときは、パスキーで認証するだけで過去のメッセージも読めます。
+          </p>
+          <button type="button" class="primary" [disabled]="busy()" (click)="start()">
+            {{ busy() ? '準備しています...' : '暗号化を始める' }}
           </button>
-        </form>
-        <button type="button" class="link" [disabled]="busy()" (click)="startReset()">パスフレーズを忘れた</button>
-      }
-    }
-  }
+        }
 
-  @if (state() === 'needs-setup' || (state() === 'needs-restore' && resetting())) {
-    @if (resetting()) {
-      <h2>暗号鍵を作り直します</h2>
-      <p class="warning">
-        作り直すと、<strong>これまでのトークのメッセージは読めなくなります</strong>（どの端末でも戻せません）。
-        ほかのメンバーがトークを開くと新しい鍵が届き、その後のメッセージは読めるようになります。
-      </p>
-    } @else {
-      <h2>トークの暗号化を始めます</h2>
-      <p>
-        トークのメッセージは、あなたの端末で暗号化してから届けます。読めるのはトークの参加者だけで、
-        運営者や事務局も読めません。
-      </p>
-      <p>
-        そのための暗号鍵を、パスフレーズで守って保存します。機種変更したときや別の端末で使うときに、
-        このパスフレーズで過去のメッセージも読めるようになります。
-      </p>
-    }
-    <form (ngSubmit)="create()">
-      <label for="newPassphrase">パスフレーズ（{{ minLength }}文字以上）</label>
-      <input id="newPassphrase" name="newPassphrase" type="password" autocomplete="new-password"
-        [ngModel]="passphrase()" (ngModelChange)="passphrase.set($event)" />
-      <label for="confirmPassphrase">もう一度入力</label>
-      <input id="confirmPassphrase" name="confirmPassphrase" type="password" autocomplete="new-password"
-        [ngModel]="confirmation()" (ngModelChange)="confirmation.set($event)" />
-      @if (confirmation() && passphrase() !== confirmation()) {
-        <p class="hint error">パスフレーズが一致しません。</p>
+        @case ('code') {
+          <h2>回復コードを保管してください</h2>
+          <p>
+            端末をすべて失ったときや、パスキーが引き継がれない機種（例: iPhone から Android）に変えたときに、
+            このコードで過去のメッセージを戻せます。<strong>表示されるのは今だけ</strong>です。
+          </p>
+          <div class="code" aria-label="回復コード">{{ recoveryCode() }}</div>
+          <div class="code-actions">
+            <button type="button" class="secondary" (click)="copyCode()">
+              {{ copied() ? 'コピーしました' : 'コピーする' }}
+            </button>
+          </div>
+          <p class="hint">
+            紙に書く、写真を撮る、パスワード管理アプリに保存するなど、この端末とは別の場所に保管してください。
+            運営者は回復コードを知らないため、失くすと誰にも戻せません。
+          </p>
+          <label class="check">
+            <input type="checkbox" [checked]="savedCode()" (change)="savedCode.set($any($event.target).checked)" />
+            回復コードを、この端末とは別の場所に保管しました
+          </label>
+          <button type="button" class="primary" [disabled]="busy() || !savedCode()" (click)="afterCode()">次へ</button>
+        }
+
+        @case ('passkey') {
+          <h2><fa-icon [icon]="icons.fingerprint" /> この端末のパスキーで守ります</h2>
+          <p>
+            指紋・顔認証などで、暗号鍵を守ります。この端末にパスキーが無ければ、ここで登録します
+            （登録したパスキーは、次回からのログインにも使えます）。
+          </p>
+          <button type="button" class="primary" [disabled]="busy()" (click)="protectWithPasskey()">
+            {{ busy() ? '確認しています...' : 'パスキーで守る' }}
+          </button>
+          <button type="button" class="link" [disabled]="busy()" (click)="skipPasskey()">
+            {{ passkeyContext() === 'setup' ? 'パスキーは使わない（回復コードだけで守る）' : 'パスキーは使わずに始める' }}
+          </button>
+        }
+
+        @case ('restore') {
+          <h2>この端末で、トークの暗号鍵を戻します</h2>
+          <p>
+            トークのメッセージは暗号化されていて、読めるのはあなたの端末だけです。この端末で読むには、暗号鍵を戻してください。
+          </p>
+          @if (hasPasskeyBackup()) {
+            <button type="button" class="primary" [disabled]="busy()" (click)="restoreWithPasskey()">
+              <fa-icon [icon]="icons.fingerprint" /> {{ busy() ? '確認しています...' : 'パスキーで戻す' }}
+            </button>
+            <p class="hint">同じ Apple ID・Google アカウントの端末なら、パスキーが引き継がれています。</p>
+          }
+          <button type="button" [class]="hasPasskeyBackup() ? 'link' : 'primary'" [disabled]="busy()" (click)="goTo('recovery')">
+            回復コードを入力する
+          </button>
+          <button type="button" class="link" [disabled]="busy()" (click)="goTo('reset')">パスキーも回復コードも使えない</button>
+        }
+
+        @case ('recovery') {
+          <h2><fa-icon [icon]="icons.key" /> 回復コードで戻す</h2>
+          <form (ngSubmit)="restoreWithCode()">
+            <label for="recoveryCode">回復コード</label>
+            <input id="recoveryCode" name="recoveryCode" type="text" autocomplete="off" autocapitalize="characters"
+              spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+              [ngModel]="codeInput()" (ngModelChange)="codeInput.set($event)" />
+            <button type="submit" class="primary" [disabled]="busy() || !codeInput().trim()">
+              {{ busy() ? '確認しています...' : '暗号鍵を戻す' }}
+            </button>
+          </form>
+          <button type="button" class="link" [disabled]="busy()" (click)="goTo('restore')">戻る</button>
+        }
+
+        @case ('reset') {
+          <h2>暗号鍵を作り直します</h2>
+          <p class="warning">
+            作り直すと、<strong>これまでのトークのメッセージは読めなくなります</strong>（どの端末でも戻せません）。
+            ほかのメンバーがトークを開くと新しい鍵が届き、その後のメッセージは読めるようになります。
+          </p>
+          <label class="check">
+            <input type="checkbox" [checked]="resetUnderstood()" (change)="resetUnderstood.set($any($event.target).checked)" />
+            これまでのメッセージが読めなくなることを理解しました
+          </label>
+          <button type="button" class="primary" [disabled]="busy() || !resetUnderstood()" (click)="start()">
+            暗号鍵を作り直す
+          </button>
+          <button type="button" class="link" [disabled]="busy()" (click)="goTo('restore')">戻る</button>
+        }
       }
-      <p class="hint">
-        ほかのサービスと同じものは避け、覚えやすい言葉をいくつか組み合わせてください（例: 「長良川で鮎を3匹釣った」）。
-      </p>
-      <label class="check">
-        <input type="checkbox" [checked]="understood()" (change)="understood.set($any($event.target).checked)" />
-        パスフレーズを忘れると、過去のメッセージは誰にも戻せないことを理解しました（運営者も戻せません）
-      </label>
-      <button type="submit" [disabled]="!canCreate()">
-        {{ busy() ? '暗号鍵を作っています...' : resetting() ? '暗号鍵を作り直す' : '暗号化を始める' }}
-      </button>
-    </form>
-    @if (resetting()) {
-      <button type="button" class="link" [disabled]="busy()" (click)="cancelReset()">パスフレーズの入力に戻る</button>
     }
   }
 

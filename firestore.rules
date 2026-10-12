@@ -61,18 +61,18 @@ service cloud.firestore {
           allow create, delete: if false;
         }
 
-        // 暗号鍵のバックアップ(パスフレーズで暗号化した秘密鍵。SECURITY-DEVELOPMENT.md 6-3)。
-        // 総当たりを防ぐため、本人だけが読み書きできる(管理者も読めない)。
+        // 暗号鍵の控え(回復コードで暗号化したもの recovery と、パスキーの PRF で暗号化したもの passkey-*。
+        // SECURITY-DEVELOPMENT.md 6-3)。総当たりを防ぐため、本人だけが読み書きできる(管理者も読めない)。
         match /e2ee/{docId} {
-          allow read: if isSelf(tenantId, memberId);
+          allow read, delete: if isSelf(tenantId, memberId);
           allow create, update: if isSelf(tenantId, memberId)
-            && docId == 'backup'
-            && request.resource.data.keys().hasOnly(['v', 'keyId', 'salt', 'iterations', 'iv', 'ct', 'updatedAt'])
+            && (docId == 'recovery' || docId.matches('passkey-[0-9a-f]{40}'))
+            && request.resource.data.keys().hasOnly(['v', 'keyId', 'salt', 'iterations', 'credentialId', 'iv', 'ct', 'updatedAt'])
             && request.resource.data.keyId is string
             && request.resource.data.ct is string && request.resource.data.ct.size() <= 4000
-            && request.resource.data.iterations is int && request.resource.data.iterations >= 100000
+            && (docId != 'recovery' || (request.resource.data.iterations is int && request.resource.data.iterations >= 100000))
+            && (docId == 'recovery' || request.resource.data.credentialId is string)
             && request.resource.data.updatedAt == request.time;
-          allow delete: if false;
         }
 
         // 非公開のプロフィール(生年月など)。本人と管理者だけが読める。書き込みは Cloud Functions だけ

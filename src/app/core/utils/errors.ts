@@ -13,10 +13,26 @@ export function toErrorMessage(err: unknown): string {
  * メッセージに差し替える(@simplewebauthn/browserがラップした場合もcause元のnameを引き継ぐ)。
  */
 export function toPasskeyErrorMessage(err: unknown): string {
+  if (isAlreadyRegisteredError(err)) {
+    return 'この端末には、すでにこのアカウントのパスキーがあります。';
+  }
   if (err instanceof Error && err.name === 'NotAllowedError') {
     return 'パスキーの操作がキャンセルされたか、時間内に完了しませんでした。もう一度お試しください。';
   }
   return toErrorMessage(err);
+}
+
+/**
+ * 同じ認証器に、同じアカウントのパスキーを重ねて登録しようとした(この端末にはすでにある)。
+ * iCloudキーチェーン・Googleパスワードマネージャーで、別の端末で登録したパスキーが同期されていることもある。
+ */
+export function isAlreadyRegisteredError(err: unknown): boolean {
+  const e = err as { name?: string; code?: string; cause?: { name?: string } } | null;
+  return (
+    e?.name === 'InvalidStateError' ||
+    e?.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED' ||
+    e?.cause?.name === 'InvalidStateError'
+  );
 }
 
 const PHONE_AUTH_ERROR_MESSAGES: Record<string, string> = {

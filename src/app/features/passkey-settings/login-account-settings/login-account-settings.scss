@@ -119,3 +119,15 @@ input[type='password'] {
 .success {
   color: #166534;
 }
+
+.recovery-code {
+  padding: 10px;
+  border: 1px dashed #0f766e;
+  border-radius: 8px;
+  background: #f0fdfa;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: center;
+  user-select: all;
+}

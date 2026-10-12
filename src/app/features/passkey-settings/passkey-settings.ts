@@ -8,7 +8,7 @@ import { LoginService } from '../../core/services/login.service';
 import { PinInput } from '../../shared/pin-input/pin-input';
 import { LoginAccountSettings } from './login-account-settings/login-account-settings';
 import { E2eeSettings } from './e2ee-settings/e2ee-settings';
-import { toErrorMessage, toPasskeyErrorMessage } from '../../core/utils/errors';
+import { isAlreadyRegisteredError, toErrorMessage, toPasskeyErrorMessage } from '../../core/utils/errors';
 
 const PIN_REGEX = /^\d{6}$/;
 
@@ -107,19 +107,30 @@ export class PasskeySettings {
       const credentialId = await this.passkeyService.register(kind, this.deviceLabel().trim() || undefined);
       this.localCredentialId.set(credentialId);
       this.passkeyService.markLocalPasskeyHint(kind, true);
-      // ログイン画面で、自分のログインID(・メールアドレス)を入れたときにこのパスキーを試せるようにする。
-      void this.loginService
-        .getSettings()
-        .then((s) => this.passkeyService.rememberPasskeyFor([s.loginId, s.emailLogin ? s.email : null]))
-        .catch(() => undefined);
+      this.rememberOwnIdentifiers();
       this.deviceLabel.set('');
       this.successMessage.set('パスキーを登録しました。');
       await this.load();
     } catch (err) {
+      if (isAlreadyRegisteredError(err)) {
+        // 別の端末で登録したパスキーが、この端末に同期されている。
+        this.passkeyService.markLocalPasskeyHint(kind, true);
+        this.rememberOwnIdentifiers();
+        this.successMessage.set('この端末には、すでにこのアカウントのパスキーがあります。そのパスキーでログインできます。');
+        return;
+      }
       this.errorMessage.set(toPasskeyErrorMessage(err));
     } finally {
       this.registering.set(false);
     }
+  }
+
+  /** ログイン画面で、自分のログインID(・メールアドレス)を入れたときにこの端末のパスキーを試せるようにする。 */
+  private rememberOwnIdentifiers(): void {
+    void this.loginService
+      .getSettings()
+      .then((s) => this.passkeyService.rememberPasskeyFor([s.loginId, s.emailLogin ? s.email : null]))
+      .catch(() => undefined);
   }
 
   formatDate(isoString: string): string {

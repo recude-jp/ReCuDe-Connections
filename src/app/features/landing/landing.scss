@@ -1,13 +1,14 @@
-// トップページ。アプリと同じ深緑(清流)を基調に、山並みの淡い緑と、ふるさとの温かみの橙を差し色にする。
+// トップページ。イラスト(橙と黒)に合わせて背景は温かいクリーム色、ボタン・リンクはアプリと同じ深緑にする。
 $accent: #0f766e;
 $accent-dark: #115e59;
 $accent-soft: #ccfbf1;
-$warm: #c2410c;
-$warm-soft: #ffedd5;
+$orange: #fb8a3c;
+$orange-deep: #ea580c;
+$cream: #fff7ed;
+$cream-light: #fffbf5;
 $ink: #1c1917;
 $muted: #57534e;
-$line: #e7e5e4;
-$paper: #fafaf9;
+$line: #eadfd3;
 
 :host {
   display: block;
@@ -17,6 +18,12 @@ $paper: #fafaf9;
 .landing {
   color: $ink;
   line-height: 1.8;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 section {
@@ -42,7 +49,7 @@ section {
   display: none;
 }
 
-// ---- ヘッダ ----
+// ---- ヘッダ・ボタン ----
 .topbar {
   position: sticky;
   top: 0;
@@ -51,7 +58,7 @@ section {
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 251, 245, 0.92);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid $line;
 }
@@ -86,7 +93,6 @@ section {
   }
 }
 
-// ---- ボタン ----
 .button {
   display: inline-flex;
   align-items: center;
@@ -99,7 +105,7 @@ section {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease;
 
   &:hover {
     transform: translateY(-1px);
@@ -110,10 +116,6 @@ section {
     background: $accent;
     color: #fff;
     box-shadow: 0 6px 16px rgba(15, 118, 110, 0.3);
-
-    &:hover {
-      background: $accent-dark;
-    }
   }
 
   &.ghost {
@@ -135,15 +137,13 @@ section {
 
 // ---- ファーストビュー ----
 .hero {
-  position: relative;
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  grid-template-columns: 1.05fr 1fr;
   align-items: center;
-  gap: 32px;
-  max-width: 1120px;
+  gap: 40px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding-top: 64px;
-  padding-bottom: 64px;
+  padding-top: 56px;
 }
 
 .eyebrow {
@@ -151,22 +151,21 @@ section {
   margin: 0 0 16px;
   padding: 4px 14px;
   border-radius: 999px;
-  background: $accent-soft;
-  color: $accent-dark;
+  background: $cream;
+  color: $orange-deep;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .hero h1 {
   margin: 0 0 20px;
   font-size: 2.6rem;
   line-height: 1.45;
-  letter-spacing: 0.02em;
 
   em {
     font-style: normal;
     color: $accent;
-    background: linear-gradient(transparent 70%, $warm-soft 70%);
+    background: linear-gradient(transparent 68%, #fed7aa 68%);
   }
 }
 
@@ -176,50 +175,37 @@ section {
   font-size: 1.05rem;
 }
 
-.hero-art {
+// 岐阜の山と川に、人のつながりを重ねたイラスト。後ろに柔らかい橙の円を置く。
+.hero-visual {
+  position: relative;
   width: 100%;
-  height: auto;
+  max-width: 500px;
+  margin: 0 auto;
+}
 
-  .mountain.far {
-    fill: #d9f99d;
-    opacity: 0.55;
-  }
-  .mountain.near {
-    fill: #99f6e4;
-    opacity: 0.6;
-  }
-  .river {
-    fill: none;
-    stroke: $accent;
-    stroke-width: 4;
-    stroke-linecap: round;
-    opacity: 0.7;
+.hero-blob {
+  position: absolute;
+  top: -2%;
+  left: 30%;
+  width: 46%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #fff3e3, #ffe4c7);
+}
 
-    &.thin {
-      stroke-width: 2;
-      opacity: 0.4;
-    }
-  }
-  .links line {
-    stroke: $accent;
-    stroke-width: 2;
-    opacity: 0.35;
-  }
-  .nodes circle {
-    fill: #fff;
-    stroke: $accent;
-    stroke-width: 3;
-
-    &.accent {
-      fill: $warm-soft;
-      stroke: $warm;
-    }
-  }
+.hero-art {
+  position: relative;
+  width: 100%;
 }
 
 // ---- コンセプト ----
 .concept {
-  background: $paper;
+  background: $cream-light;
+}
+
+.concept-art {
+  width: 260px;
+  margin: -8px auto 32px;
 }
 
 .compare {
@@ -249,6 +235,12 @@ section {
     position: relative;
     padding-left: 28px;
     margin-bottom: 8px;
+
+    &::before {
+      position: absolute;
+      left: 4px;
+      font-weight: 700;
+    }
   }
 
   &.other {
@@ -257,8 +249,6 @@ section {
 
     li::before {
       content: '–';
-      position: absolute;
-      left: 6px;
     }
   }
 
@@ -267,16 +257,13 @@ section {
     background: #fff;
     box-shadow: 0 10px 30px rgba(15, 118, 110, 0.12);
 
-    h3 {
+    h3,
+    li::before {
       color: $accent;
     }
 
     li::before {
       content: '✓';
-      position: absolute;
-      left: 4px;
-      color: $accent;
-      font-weight: 700;
     }
   }
 }
@@ -291,8 +278,15 @@ section {
 }
 
 .generation-card {
-  padding: 32px;
+  padding: 28px 32px 32px;
   border-radius: 20px;
+  background: $cream;
+
+  .generation-art {
+    height: 170px;
+    width: auto;
+    margin: 0 auto 16px;
+  }
 
   .age {
     display: inline-block;
@@ -319,32 +313,24 @@ section {
     padding-left: 1.2em;
   }
 
-  li {
-    margin-bottom: 4px;
-  }
-
-  &.young {
-    background: $accent-soft;
-
-    .age,
-    h3 {
-      color: $accent-dark;
-    }
+  &.young .age,
+  &.young h3 {
+    color: $accent-dark;
   }
 
   &.senior {
-    background: $warm-soft;
+    background: #ffedd5;
 
     .age,
     h3 {
-      color: $warm;
+      color: $orange-deep;
     }
   }
 }
 
 // ---- できること ----
 .features {
-  background: $paper;
+  background: $cream-light;
 }
 
 .feature-grid {
@@ -356,10 +342,11 @@ section {
 }
 
 .feature {
-  padding: 28px 24px;
+  padding: 24px;
   border: 1px solid $line;
   border-radius: 16px;
   background: #fff;
+  text-align: center;
 
   h3 {
     margin: 12px 0 8px;
@@ -370,19 +357,14 @@ section {
     margin: 0;
     color: $muted;
     font-size: 0.92rem;
+    text-align: left;
   }
 }
 
-.feature-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: $accent-soft;
-  color: $accent;
-  font-size: 1.2rem;
+.feature-art {
+  height: 120px;
+  width: auto;
+  margin: 0 auto;
 }
 
 .soon {
@@ -393,7 +375,78 @@ section {
   color: $muted;
   font-size: 0.72rem;
   font-weight: 500;
-  vertical-align: 2px;
+}
+
+// ---- 秘匿性(ほかの節と区別して目に留まるよう、濃い色の背景にする) ----
+.privacy {
+  background: linear-gradient(160deg, #134e4a 0%, #0f172a 100%);
+  color: #fff;
+
+  h2 {
+    max-width: 960px;
+    margin: 0 auto 16px;
+    font-size: 1.9rem;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  .section-lead {
+    color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+.privacy-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: #5eead4;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.privacy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.privacy-card {
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+
+  h3 {
+    margin: 16px 0 10px;
+    font-size: 1.1rem;
+    line-height: 1.6;
+  }
+
+  p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.92rem;
+  }
+}
+
+// 黒い線のイラストが暗い背景で見えるよう、白い枠に入れる。
+.privacy-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  border-radius: 12px;
+  background: $cream-light;
+
+  img {
+    height: 120px;
+    width: auto;
+  }
 }
 
 // ---- 参加の流れ ----
@@ -408,18 +461,14 @@ section {
   counter-reset: step;
 
   li {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 28px 24px;
+    padding: 24px;
     border-radius: 16px;
-    background: $paper;
+    background: $cream-light;
     counter-increment: step;
 
     &::before {
       content: 'STEP ' counter(step);
-      color: $warm;
+      color: $orange-deep;
       font-size: 0.8rem;
       font-weight: 700;
       letter-spacing: 0.08em;
@@ -438,28 +487,30 @@ section {
   }
 }
 
-.step-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: $accent;
-  color: #fff;
+.step-art {
+  height: 110px;
+  width: auto;
+  margin: 8px auto 12px;
 }
 
-.steps-note {
+.request-cta {
   max-width: 640px;
   margin: 32px auto 0;
-  color: $muted;
-  font-size: 0.9rem;
+  padding: 24px;
+  border: 1px dashed $orange;
+  border-radius: 16px;
   text-align: center;
+
+  p {
+    margin: 0 0 16px;
+    color: $muted;
+    font-size: 0.92rem;
+  }
 }
 
 // ---- よくある質問 ----
 .faq {
-  background: $paper;
+  background: $cream-light;
 
   details {
     max-width: 720px;
@@ -501,33 +552,27 @@ section {
     margin: 0;
     padding: 0 20px 20px;
     color: $muted;
+
+    a {
+      color: $accent;
+    }
   }
 }
 
 // ---- 最後の呼びかけ ----
 .closing {
-  background: linear-gradient(135deg, $accent 0%, $accent-dark 100%);
-  color: #fff;
+  background: $cream;
   text-align: center;
-
-  > h2 {
-    color: #fff;
-  }
 
   p {
     margin: 0 0 28px;
-    opacity: 0.9;
+    color: $muted;
   }
+}
 
-  .button.primary {
-    background: #fff;
-    color: $accent-dark;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-
-    &:hover {
-      background: $warm-soft;
-    }
-  }
+.closing-art {
+  width: 320px;
+  margin: 0 auto 24px;
 }
 
 .footer {
@@ -547,7 +592,7 @@ section {
   }
 }
 
-// ---- スマホ ----
+// ---- スマホ・タブレット ----
 @media (max-width: 767px) {
   section {
     padding: 56px 16px;
@@ -567,19 +612,17 @@ section {
 
   .hero {
     grid-template-columns: 1fr;
-    gap: 8px;
-    padding-top: 40px;
-    padding-bottom: 40px;
+    gap: 16px;
+    padding-top: 32px;
   }
 
   .hero h1 {
     font-size: 1.85rem;
   }
 
-  .hero-art {
+  .hero-visual {
     order: -1;
-    max-width: 360px;
-    margin: 0 auto;
+    max-width: 280px;
   }
 
   .hero-actions .button {
@@ -589,116 +632,23 @@ section {
   .compare,
   .generation-cards,
   .feature-grid,
+  .privacy-grid,
   .step-list {
     grid-template-columns: 1fr;
   }
 
-  .generation-card {
-    padding: 24px;
+  .privacy h2 {
+    font-size: 1.45rem;
+  }
+
+  .concept-art,
+  .closing-art {
+    width: 220px;
   }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
   .feature-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.request-cta {
-  max-width: 640px;
-  margin: 32px auto 0;
-  padding: 24px;
-  border: 1px dashed $accent;
-  border-radius: 16px;
-  text-align: center;
-
-  p {
-    margin: 0 0 16px;
-    color: $muted;
-    font-size: 0.92rem;
-  }
-}
-
-.faq details p a {
-  color: $accent;
-}
-
-// ---- 秘匿性 ----
-// ほかの節と区別して目に留まるよう、濃い色の背景にする。
-.privacy {
-  background: linear-gradient(160deg, #134e4a 0%, #0f172a 100%);
-  color: #fff;
-
-  > .privacy-inner > h2 {
-    max-width: 960px;
-    margin: 0 auto 16px;
-    font-size: 1.9rem;
-    line-height: 1.5;
-    text-align: center;
-  }
-
-  .section-lead {
-    color: rgba(255, 255, 255, 0.8);
-  }
-}
-
-.privacy-eyebrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 0 0 12px;
-  color: #5eead4;
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.privacy-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  max-width: 1040px;
-  margin: 0 auto;
-}
-
-.privacy-card {
-  padding: 28px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-
-  h3 {
-    margin: 14px 0 10px;
-    font-size: 1.1rem;
-    line-height: 1.6;
-  }
-
-  p {
-    margin: 0;
-    color: rgba(255, 255, 255, 0.78);
-    font-size: 0.92rem;
-  }
-}
-
-.privacy-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: rgba(94, 234, 212, 0.15);
-  color: #5eead4;
-  font-size: 1.3rem;
-}
-
-@media (max-width: 767px) {
-  .privacy > .privacy-inner > h2 {
-    font-size: 1.45rem;
-  }
-
-  .privacy-grid {
-    grid-template-columns: 1fr;
   }
 }

@@ -384,7 +384,7 @@ classDiagram
 | `tenants/[tenantId]/admins/[adminUid]/pinDevices/[deviceId]` | **廃止**。旧方式の事務局アカウントが登録したPINログイン用端末（ログインには使えない） |
 | `phoneIndex/[phoneNumber]` | 電話番号→(テナント, 会員)の逆引き。ログイン時の`resolveMemberSession`が参照 |
 | `tenants/[tenantId]/members/[memberId]/private/login` | ログインの設定（`loginId`・確認済みの`email`・`emailLogin`・`phoneNumber`・`adminAccessConsentAt`＝ログイン情報を管理者が見られることに同意した日時）。本人と管理者だけが読める。書き込みは Cloud Functions のみ。電話番号は会員データ（`members`）から移した（SECURITY-DEVELOPMENT.md 7章） |
-| `tenants/[tenantId]/members/[memberId]/e2ee/backup` | パスフレーズで暗号化した、会員の暗号鍵（秘密鍵）のバックアップ。本人だけが読み書きできる（管理者も読めない） |
+| `tenants/[tenantId]/members/[memberId]/e2ee/recovery`・`e2ee/passkey-[credentialId の SHA-256]` | 会員の暗号鍵（秘密鍵）の控え。`recovery` は回復コードで、`passkey-*` はパスキーの PRF で暗号化したもの（`keyId`・`iv`・`ct`、パスキーは `credentialId`）。本人だけが読み書きできる（管理者も読めない） |
 | `tenants/[tenantId]/memberKeys/[memberId]` | 会員の公開鍵（`publicKey`・`keyId`）。同じテナントの会員が読める。書けるのは本人だけ |
 | `tenants/[tenantId]/rooms/[roomId]/keys/[世代]` | ルームの鍵の世代（`createdBy`）。その世代で最初に使うメンバーの端末が作る。世代はルームの `keyEpoch`（グループからメンバーが抜けると Cloud Functions が進める） |
 | `tenants/[tenantId]/rooms/[roomId]/keys/[世代]/members/[memberId]` | そのメンバーの公開鍵で包んだルームの鍵（`epk`・`iv`・`ct`・`keyId`・`wrappedBy`）。ルームのメンバーが読み書きできる（開けるのは受け取る本人だけ） |
