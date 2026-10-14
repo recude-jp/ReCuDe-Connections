@@ -9,6 +9,7 @@ import {
   doc,
   docData,
   limitToLast,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -99,11 +100,30 @@ export class RoomService {
   }
 
   /** 最新 count 件のメッセージ(古い順)。遡るときは count を増やして購読し直す(SPEC 5-7のページング)。 */
-  listMessages(tenantId: string, roomId: string, count: number): Observable<WithId<RoomMessage>[]> {
+  /**
+   * ルームの新しい方から count 件のメッセージ(古い順)。fromCache は、端末に残っている分だけでの仮の結果か
+   * (件数を増やして読み直すと、まず手元の分だけが届き、その後にサーバーからの結果が届く。前のメッセージを
+   * 読み終えたか・まだ前があるかは、サーバーからの結果で見分ける)。
+   */
+  listMessages(
+    tenantId: string,
+    roomId: string,
+    count: number,
+  ): Observable<{ list: WithId<RoomMessage>[]; fromCache: boolean }> {
     const ref = collection(this.firestore, `tenants/${tenantId}/rooms/${roomId}/messages`);
-    return collectionData(query(ref, orderBy('createdAt', 'asc'), limitToLast(count)), {
-      idField: 'id',
-    }) as Observable<WithId<RoomMessage>[]>;
+    const q = query(ref, orderBy('createdAt', 'asc'), limitToLast(count));
+    return new Observable((subscriber) =>
+      onSnapshot(
+        q,
+        { includeMetadataChanges: true },
+        (snap) =>
+          subscriber.next({
+            list: snap.docs.map((d) => ({ ...(d.data() as RoomMessage), id: d.id })),
+            fromCache: snap.metadata.fromCache,
+          }),
+        (err) => subscriber.error(err),
+      ),
+    );
   }
 
   /** グループへの招待・作成で選べる、同じテナントの有効な会員。 */

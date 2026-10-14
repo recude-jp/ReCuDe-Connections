@@ -15,6 +15,7 @@ import { formatProfileValue, missingRequiredFields, visibleProfileFields } from 
 import { prepareAvatarImage } from '../../core/utils/image';
 import { toErrorMessage } from '../../core/utils/errors';
 import { clampIconText } from '../../core/utils/icon-text';
+import { Spinner } from '../../shared/spinner/spinner';
 
 /**
  * マイページの「プロフィール」タブ(/mypage)。自分のプロフィールとロールを表示し、編集する。
@@ -22,7 +23,7 @@ import { clampIconText } from '../../core/utils/icon-text';
  */
 @Component({
   selector: 'app-mypage',
-  imports: [FormsModule, RouterLink, SetupPromptBanner, ProfileForm, MemberAvatar, MyPageCommunities],
+  imports: [FormsModule, RouterLink, SetupPromptBanner, ProfileForm, MemberAvatar, MyPageCommunities, Spinner],
   templateUrl: './mypage.html',
   styleUrl: './mypage.scss',
 })

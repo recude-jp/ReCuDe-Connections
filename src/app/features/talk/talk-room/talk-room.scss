@@ -82,15 +82,13 @@ $accent: #0f766e;
 }
 
 .load-older {
-  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   margin-bottom: 8px;
-  padding: 4px 12px;
-  border: 1px solid #d6d3d1;
-  border-radius: 999px;
-  background: #fff;
-  color: #57534e;
+  color: #78716c;
   font-size: 0.8rem;
-  cursor: pointer;
 }
 
 .no-messages {
@@ -166,9 +164,22 @@ $accent: #0f766e;
     transition: background 0.3s;
   }
 
-  // PCではマウスを乗せたときだけリアクションのボタンを出す(スマホでは常に出す)。
-  &:hover .react-button,
+  // マウスを使う端末では、吹き出し(とその横のボタン)にマウスを乗せたときだけ、リアクション・返信のボタンを出す。
+  // 行は画面の横幅いっぱいあるため、行ではなく吹き出しの並び(.bubble-line)で見る(吹き出しから離れたら消える)。
+  @media (hover: hover) {
+    .bubble-line:hover .react-button {
+      opacity: 1;
+    }
+  }
+
   .react-button.active {
+    opacity: 1;
+  }
+}
+
+// マウスを乗せられない端末(スマホ・タブレット)では、リアクション・返信のボタンを常に出す。
+@media (hover: none) {
+  .react-button {
     opacity: 1;
   }
 }
@@ -458,11 +469,6 @@ $accent: #0f766e;
 @media (max-width: 767px) {
   .back {
     display: inline-flex;
-  }
-
-  // スマホではマウスを乗せられないため、リアクションのボタンを常に出す。
-  .react-button {
-    opacity: 1;
   }
 
   .info span {

@@ -23,9 +23,10 @@
       }
     </header>
 
-    <div class="messages">
-      @if (hasOlder()) {
-        <button type="button" class="load-older" (click)="loadOlder()">以前のメッセージを読み込む</button>
+    <!-- 上端に近づくと、前のメッセージを自動で読み込む(onMessagesScroll)。 -->
+    <div class="messages" #messagesContainer (scroll)="onMessagesScroll()">
+      @if (loadingOlder()) {
+        <div class="load-older" role="status"><app-spinner /> 以前のメッセージを読み込んでいます</div>
       }
       @for (message of displayMessages(); track message.id; let i = $index) {
         <div

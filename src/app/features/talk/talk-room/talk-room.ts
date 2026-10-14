@@ -1,4 +1,4 @@
-import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
@@ -22,10 +22,27 @@ import { MemberProfileDialog } from '../member-profile-dialog/member-profile-dia
 import { ReactionPicker } from '../reaction-picker/reaction-picker';
 import { formatMessageTime } from '../../../core/utils/dates';
 import { toErrorMessage } from '../../../core/utils/errors';
+import { Spinner } from '../../../shared/spinner/spinner';
 import { linkify, TextSegment } from '../../../core/utils/linkify';
 
-/** 一度に読むメッセージの件数(遡るときはこの件数ずつ増やす。SPEC 5-7)。 */
-const PAGE_SIZE = 30;
+/**
+ * 一度に読むメッセージの件数(遡るときもこの件数ずつ増やす。SPEC 5-7)。画面に収まる件数の2倍程度にする
+ * (1件あたりの高さの目安 MESSAGE_HEIGHT_PX で、画面の高さから見積もる)。
+ */
+const MESSAGE_HEIGHT_PX = 44;
+const MIN_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 60;
+
+function pageSize(): number {
+  const fit = Math.ceil(window.innerHeight / MESSAGE_HEIGHT_PX);
+  return Math.min(MAX_PAGE_SIZE, Math.max(MIN_PAGE_SIZE, fit * 2));
+}
+
+/** 上端からこの距離までスクロールしたら、前のメッセージを読み込み始める(上端に着く前に読み終えるように)。 */
+const LOAD_OLDER_THRESHOLD_PX = 300;
+
+/** 最下部からこの距離以内にいれば、新しいメッセージが届いたときに最下部までスクロールする。 */
+const STICK_TO_BOTTOM_PX = 80;
 
 /** 鍵が届いていないメッセージを、読み直す間隔(ほかのメンバーが鍵を渡してくれるのを待つ)。 */
 const KEY_RETRY_MS = 15_000;
@@ -79,6 +96,7 @@ type DecryptResult = { status: 'ok'; content: MessageContent } | { status: 'no-k
     MemberAvatar,
     MemberProfileDialog,
     ReactionPicker,
+    Spinner,
   ],
   templateUrl: './talk-room.html',
   styleUrl: './talk-room.scss',
@@ -115,8 +133,10 @@ export class TalkRoom {
     initialValue: '',
   });
 
+  /** 1ページの件数(画面の高さから決める)。 */
+  private readonly pageSize = pageSize();
   /** 読み込むメッセージの件数。ルームを切り替えたら最初のページに戻す。 */
-  readonly messageCount = signal(PAGE_SIZE);
+  readonly messageCount = signal(this.pageSize);
 
   private readonly context$ = combineLatest([toObservable(this.memberSession), toObservable(this.roomId)]).pipe(
     distinctUntilChanged(([a, roomA], [b, roomB]) => a?.memberId === b?.memberId && roomA === roomB),
@@ -132,14 +152,20 @@ export class TalkRoom {
     { initialValue: undefined },
   );
 
-  readonly messages = toSignal(
+  /** 読み込んだメッセージと、何件を求めて読み込んだものか(前のメッセージの読み込みが終わったかを見分ける)。 */
+  private readonly messagePage = toSignal(
     combineLatest([this.context$, toObservable(this.messageCount)]).pipe(
       switchMap(([[session, roomId], count]) =>
-        session && roomId ? this.roomService.listMessages(session.tenantId, roomId, count) : of([]),
+        (session && roomId
+          ? this.roomService.listMessages(session.tenantId, roomId, count)
+          : of({ list: [] as WithId<RoomMessage>[], fromCache: false })
+        ).pipe(map((page) => ({ count, ...page }))),
       ),
     ),
-    { initialValue: [] as WithId<RoomMessage>[] },
+    { initialValue: { count: 0, list: [] as WithId<RoomMessage>[], fromCache: true } },
   );
+
+  readonly messages = computed(() => this.messagePage().list);
 
   private readonly thread = toSignal(
     this.context$.pipe(
@@ -279,7 +305,11 @@ export class TalkRoom {
     this.isGroup() ? 'peer' : politenessTierFor(this.otherMember()?.positionLevel),
   );
 
-  readonly hasOlder = computed(() => this.messages().length >= this.messageCount());
+  /** まだ前のメッセージがありそうか(サーバーから、求めた件数どおりに読み込めたら、まだ前がある)。 */
+  readonly hasOlder = computed(() => {
+    const page = this.messagePage();
+    return page.count > 0 && !page.fromCache && page.list.length >= page.count;
+  });
 
   readonly draftText = signal('');
   /** 返信しようとしているメッセージ(返信のボタンで選ぶ。送ったら外す)。 */
@@ -303,10 +333,15 @@ export class TalkRoom {
   /** 拡大表示中の画像のURL。 */
   readonly lightboxUrl = signal<string | null>(null);
 
+  private readonly injector = inject(Injector);
+  private readonly messagesContainer = viewChild<ElementRef<HTMLDivElement>>('messagesContainer');
   private readonly messagesEnd = viewChild<ElementRef<HTMLDivElement>>('messagesEnd');
   private readonly composerInput = viewChild<ElementRef<HTMLTextAreaElement>>('composerInput');
-  /** 遡って読み込んだときは最下部へスクロールしない。 */
-  private scrollToBottom = true;
+  /** 最下部を見ているか(見ていれば、新しいメッセージが届いたとき・復号できたときに最下部までスクロールする)。 */
+  private stickToBottom = true;
+  /** 前のメッセージを読み込んでいる間、読み込む前のスクロールの位置(読み込んだ後、見ていたメッセージの位置を保つ)。 */
+  private olderAnchor: { scrollHeight: number; scrollTop: number } | null = null;
+  readonly loadingOlder = signal(false);
 
   constructor() {
     // 例文を入れたとき・送信して空にしたときも、入力欄の高さを合わせ直す。
@@ -318,20 +353,24 @@ export class TalkRoom {
 
     effect(() => {
       this.roomId();
-      this.messageCount.set(PAGE_SIZE);
+      this.messageCount.set(this.pageSize);
+      this.olderAnchor = null;
+      this.loadingOlder.set(false);
       this.draftText.set('');
       this.replyTarget.set(null);
       this.errorMessage.set('');
       this.stampPanelOpen.set(false);
       this.reactionTargetId.set(null);
-      this.scrollToBottom = true;
+      this.stickToBottom = true;
     });
 
+    // メッセージが変わったら(届いた・前のメッセージを読み込んだ・復号できた)、描画の後にスクロールの位置を合わせる。
     effect(() => {
-      this.messages();
-      if (this.scrollToBottom) {
-        queueMicrotask(() => this.messagesEnd()?.nativeElement.scrollIntoView({ block: 'end' }));
-      }
+      this.displayMessages();
+      const page = this.messagePage();
+      // 手元の分だけでの仮の結果は、読み込みの完了とみなさない(-1)。
+      const loadedCount = page.fromCache ? -1 : page.count;
+      afterNextRender(() => this.afterMessagesRendered(loadedCount), { injector: this.injector });
     });
 
     // ルームを切り替えたら、復号の結果を捨てる。
@@ -407,9 +446,51 @@ export class TalkRoom {
     }
   }
 
-  loadOlder(): void {
-    this.scrollToBottom = false;
-    this.messageCount.update((count) => count + PAGE_SIZE);
+  /** メッセージの一覧をスクロールしたとき。上端に近づいたら前のメッセージを読み込む。 */
+  onMessagesScroll(): void {
+    const el = this.messagesContainer()?.nativeElement;
+    if (!el) {
+      return;
+    }
+    this.stickToBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_TO_BOTTOM_PX;
+    if (el.scrollTop <= LOAD_OLDER_THRESHOLD_PX) {
+      this.loadOlder();
+    }
+  }
+
+  /** 前のメッセージを1ページ分読み込む(もう無いとき・読み込み中は何もしない)。 */
+  private loadOlder(): void {
+    const el = this.messagesContainer()?.nativeElement;
+    if (!el || !this.hasOlder() || this.loadingOlder()) {
+      return;
+    }
+    this.olderAnchor = { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop };
+    this.loadingOlder.set(true);
+    this.messageCount.update((count) => count + this.pageSize);
+  }
+
+  /**
+   * メッセージを描画した後。前のメッセージを読み込んだときは、上に増えた分だけずらして、見ていたメッセージの位置を保つ。
+   * 最下部を見ていたときは、最下部までスクロールする。メッセージが画面を埋めていなければ、さらに前を読み込む。
+   */
+  private afterMessagesRendered(loadedCount: number): void {
+    const el = this.messagesContainer()?.nativeElement;
+    if (!el) {
+      return;
+    }
+    if (this.olderAnchor) {
+      // 増やした件数での、サーバーからの結果が届いたときだけ位置を戻す(それまでの描き直しは待つ)。
+      if (loadedCount === this.messageCount()) {
+        el.scrollTop = el.scrollHeight - this.olderAnchor.scrollHeight + this.olderAnchor.scrollTop;
+        this.olderAnchor = null;
+        this.loadingOlder.set(false);
+      }
+    } else if (this.stickToBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+    if (el.scrollTop <= LOAD_OLDER_THRESHOLD_PX) {
+      this.loadOlder();
+    }
   }
 
   applyTemplate(text: string): void {
@@ -425,7 +506,7 @@ export class TalkRoom {
     }
     this.errorMessage.set('');
     this.sending.set(true);
-    this.scrollToBottom = true;
+    this.stickToBottom = true;
     try {
       await this.roomService.sendText(session.tenantId, room, session.memberId, text, this.replyFor());
       this.draftText.set('');
@@ -448,7 +529,7 @@ export class TalkRoom {
       return;
     }
     this.errorMessage.set('');
-    this.scrollToBottom = true;
+    this.stickToBottom = true;
     try {
       await this.roomService.sendStamp(session.tenantId, room, session.memberId, stamp, this.replyFor());
       // 送ったスタンプがトークに出たら、スタンプのパネルを閉じる(送れなかったときは選び直せるよう開いたまま)。
@@ -469,7 +550,7 @@ export class TalkRoom {
       return;
     }
     this.errorMessage.set('');
-    this.scrollToBottom = true;
+    this.stickToBottom = true;
 
     // 画像は送り終わるまで時間がかかるため、返信先は選んだ時点で決めて外す(送っている間に次の返信を選べるように)。
     const replyTo = this.replyFor();

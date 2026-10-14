@@ -135,8 +135,9 @@
             <p class="error">{{ errorMessage() }}</p>
           }
           <div class="actions">
+            <!-- 本番では、画像の送信とプロフィールの保存に数秒かかることがあるため、その間はスピナーを出す。 -->
             <button type="submit" [disabled]="saving() || !draftName().trim() || missingFields().length > 0">
-              保存する
+              @if (saving()) { <app-spinner /> 保存しています… } @else { 保存する }
             </button>
             <button type="button" class="secondary" [disabled]="saving()" (click)="cancelEdit()">やめる</button>
           </div>
