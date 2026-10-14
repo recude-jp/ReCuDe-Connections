@@ -11,6 +11,7 @@ import { mailSecrets, messagingSecrets, sendEmail } from './mail';
 import { buildMemberClaims } from './memberClaims';
 import { MemberRef, requireCallerIdentity } from './callerIdentity';
 import { getMemberPhone, loginSettingsPath } from './memberPrivate';
+import { credentialsCollectionPath } from './webauthn';
 
 export { loginSettingsPath } from './memberPrivate';
 import type {
@@ -358,9 +359,10 @@ export const verifyLoginCode = onCall({ concurrency: 1 }, async (request) => {
   }
 
   const ref: MemberRef = { tenantId: outcome.tenantId, memberId: outcome.memberId };
-  const [memberSnap, settingsSnap] = await Promise.all([
+  const [memberSnap, settingsSnap, passkeySnap] = await Promise.all([
     db().doc(`tenants/${ref.tenantId}/members/${ref.memberId}`).get(),
     db().doc(loginSettingsPath(ref)).get(),
+    db().collection(credentialsCollectionPath(ref)).limit(1).get(),
   ]);
   const member = memberSnap.data() as Member | undefined;
   if (!member || !member.isActive) {
@@ -375,7 +377,8 @@ export const verifyLoginCode = onCall({ concurrency: 1 }, async (request) => {
   const uid = await authUidForPhone(phoneNumber);
   await admin.auth().setCustomUserClaims(uid, buildMemberClaims(ref.tenantId, ref.memberId, member));
   const customToken = await admin.auth().createCustomToken(uid);
-  return { customToken, needsLoginId: !settings.loginId };
+  // hasPasskey: パスキーを登録済みか(ログイン画面で、毎回パスキーの登録を勧めないために使う)。
+  return { customToken, needsLoginId: !settings.loginId, hasPasskey: !passkeySnap.empty };
 });
 
 /** パスキーでログインしたとき、そのパスキーが入力したIDの会員のものかを確かめる。 */

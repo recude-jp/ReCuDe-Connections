@@ -17,7 +17,8 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideServiceWorker('ngsw-worker.js', {
+    // sw.js は ngsw-worker.js を読み込み、プッシュ通知でアイコンのバッジを更新する処理を足したもの(public/sw.js)。
+    provideServiceWorker('sw.js', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
     }),

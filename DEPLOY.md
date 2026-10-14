@@ -267,6 +267,23 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 
 設定の手順は [`SES-SETTING.md`](SES-SETTING.md) にまとめた。
 
+## プッシュ通知を有効にする（Web Push）
+
+新着メッセージ・グループへの招待・コネクト申請を、ホーム画面に追加したアプリ（PWA）に通知し、アイコンに未読のメッセージの数を出す（`functions/src/push.ts`、`public/sw.js`）。
+VAPID の鍵の組で署名して、各ブラウザのプッシュサービス（Apple・Google・Mozilla）に直接送る。Firebase Cloud Messaging は使わない。
+
+- 公開鍵は `functions/src/push.ts` の `VAPID_PUBLIC_KEY` と、`src/environments/environment*.ts` の `vapidPublicKey`（同じ値）。
+- 秘密鍵は Secret Manager の `VAPID_PRIVATE_KEY`。チャットや画面に表示せず、ファイルから流し込む。
+
+  ```bash
+  firebase functions:secrets:set VAPID_PRIVATE_KEY --data-file <秘密鍵だけを書いたファイル> --project default-41833
+  ```
+
+- 鍵の組を作り直すと、登録済みの端末には届かなくなる（各自がマイページ > 通知 でオンにし直す）。作り直すときは `npx web-push generate-vapid-keys`（functions で実行）で作り、公開鍵の2か所と秘密鍵をそろえて変える。
+- 端末の登録は Firestore の `pushSubscriptions`（クライアントからは読み書きできない。`savePushSubscription` / `deletePushSubscription` を通す）。送れなくなった登録（404・410）は、送るときに自動で消す。
+- iPhone・iPad は iOS 16.4 以降で、ホーム画面に追加したアプリだけが受け取れる。通知のない「バッジだけ」のプッシュは送れないため、毎回通知を出す。
+- トークは暗号化しているため、通知の文はサーバーが知っている情報（送った人の名前・グループ名）だけ。
+
 ## 独自ドメインへの切り替え
 
 アプリの URL を `https://<プロジェクトID>.web.app` から独自ドメインのホスト名（以下、例として `connect.example.jp`）に切り替える手順。

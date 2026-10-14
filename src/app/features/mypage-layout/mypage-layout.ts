@@ -3,6 +3,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { PushService } from '../../core/services/push.service';
 
 interface MyPageTab {
   label: string;
@@ -18,12 +19,14 @@ const GUEST_TABS: MyPageTab[] = [
   { label: 'プロフィール', link: '/mypage', paths: ['/mypage'] },
   { label: 'マイスタンプ', link: '/mypage/stamps', paths: ['/mypage/stamps'] },
   { label: 'ログイン設定', link: '/mypage/passkeys', paths: ['/mypage/passkeys'] },
+  { label: '通知', link: '/mypage/notifications', paths: ['/mypage/notifications'] },
 ];
 
 const TABS: MyPageTab[] = [
   { label: 'プロフィール', link: '/mypage', paths: ['/mypage'] },
   { label: 'マイスタンプ', link: '/mypage/stamps', paths: ['/mypage/stamps'] },
   { label: 'ログイン設定', link: '/mypage/passkeys', paths: ['/mypage/passkeys'] },
+  { label: '通知', link: '/mypage/notifications', paths: ['/mypage/notifications'] },
 ];
 
 /**
@@ -39,6 +42,7 @@ const TABS: MyPageTab[] = [
 export class MyPageLayout {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly push = inject(PushService);
 
   private readonly session = toSignal(this.auth.session$, { initialValue: undefined });
 
@@ -73,6 +77,7 @@ export class MyPageLayout {
   async signOut(): Promise<void> {
     this.signingOut.set(true);
     try {
+      await this.push.releaseForSignOut();
       await this.auth.signOut();
       await this.router.navigate(['/login']);
     } finally {

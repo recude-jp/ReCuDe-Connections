@@ -11,10 +11,14 @@ import { MemberAvatar } from '../../../shared/member-avatar/member-avatar';
 import { CountBadge } from '../../../shared/count-badge/count-badge';
 import { E2eeGate } from '../e2ee-gate/e2ee-gate';
 import { E2eeService } from '../../../core/services/e2ee.service';
+import { PushService } from '../../../core/services/push.service';
 import type { MessageContent, Thread } from '../../../core/models/firestore.models';
 import type { WithId } from '../../../core/services/room.service';
 import { formatMessageTime } from '../../../core/utils/dates';
 import { toErrorMessage } from '../../../core/utils/errors';
+
+/** 通知の案内を閉じたことを覚えておく(端末ごと)。 */
+const PUSH_PROMPT_DISMISSED_KEY = 'recude-match:hide-push-prompt';
 
 /**
  * トーク(/talk)の2列レイアウト。左のサイドバーに、届いているグループ招待・グループ・1対1の一覧を出し、
@@ -38,6 +42,7 @@ export class TalkLayout {
   private readonly memberService = inject(MemberService);
   private readonly router = inject(Router);
   private readonly e2ee = inject(E2eeService);
+  private readonly push = inject(PushService);
 
   readonly icons = { group: faUsers, plus: faPlus };
 
@@ -47,7 +52,25 @@ export class TalkLayout {
   /** 最新メッセージのプレビュー(暗号化したものは端末で復号する。ルームID → 文)。 */
   private readonly previews = signal(new Map<string, { messageId: string; text: string }>());
 
+  private readonly pushPromptDismissed = signal(readDismissed());
+
+  /** 通知を受け取っていない(受け取れる・ホーム画面に追加すれば受け取れる)ときに、トーク一覧の上に案内を出す。 */
+  readonly showPushPrompt = computed(
+    () => !this.pushPromptDismissed() && (this.push.state() === 'off' || this.push.state() === 'needs-install'),
+  );
+
+  dismissPushPrompt(): void {
+    this.pushPromptDismissed.set(true);
+    try {
+      localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, '1');
+    } catch {
+      // 保存できない環境では、この画面を開いている間だけ隠す。
+    }
+  }
+
   constructor() {
+    void this.push.refresh();
+
     // 暗号化した最新メッセージ(テキスト)を復号して、プレビューに出す。
     effect(() => {
       const threads = this.threads() ?? [];
@@ -163,5 +186,13 @@ export class TalkLayout {
     } catch {
       // 復号できないときは、サーバーが付けた要約のまま出す。
     }
+  }
+}
+
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
   }
 }

@@ -6,6 +6,7 @@ import { PublicBrandingService } from '../../core/services/public-branding.servi
 import { FaviconService } from '../../core/services/favicon.service';
 import { InviteRequestService } from '../../core/services/invite-request.service';
 import { toE164 } from '../../core/utils/phone';
+import { Spinner } from '../../shared/spinner/spinner';
 import { toErrorMessage } from '../../core/utils/errors';
 import { environment } from '../../../environments/environment';
 
@@ -23,7 +24,7 @@ export const OTHER_ALUMNI = '__other__';
  */
 @Component({
   selector: 'app-invite-request',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, Spinner],
   templateUrl: './invite-request.html',
   styleUrl: './invite-request.scss',
 })

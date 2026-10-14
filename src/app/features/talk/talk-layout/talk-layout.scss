@@ -268,3 +268,37 @@ ul {
     font-weight: 600;
   }
 }
+
+.push-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 12px 0;
+  padding: 8px 10px 8px 12px;
+  border-radius: 10px;
+  background: #ccfbf1;
+  color: #134e4a;
+  font-size: 0.8rem;
+  line-height: 1.5;
+
+  span {
+    flex: 1;
+  }
+
+  a {
+    color: #0f766e;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .dismiss {
+    margin: 0;
+    padding: 0 4px;
+    border: none;
+    background: none;
+    color: #0f766e;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+}

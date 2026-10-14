@@ -17,6 +17,14 @@
       <p class="error">{{ errorMessage() }}</p>
     }
 
+    @if (showPushPrompt()) {
+      <p class="push-prompt">
+        <span>新しいメッセージを、通知で受け取れます。</span>
+        <a routerLink="/mypage/notifications">設定する</a>
+        <button type="button" class="dismiss" aria-label="閉じる" (click)="dismissPushPrompt()">×</button>
+      </p>
+    }
+
     @if (isGuest()) {
       <p class="guest-note">
         ゲストの間は、招待してくれた方との1対1のトークができます。グループへの参加は、<a routerLink="/mypage/membership">会員登録</a>して正規の会員になるとできるようになります。

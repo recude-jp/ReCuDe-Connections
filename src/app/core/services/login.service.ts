@@ -38,8 +38,14 @@ export class LoginService {
   }
 
   /** 認証コードが合っていれば、Firebase Auth のカスタムトークンを返す。 */
-  async verifyCode(identifier: string, code: string): Promise<{ customToken: string; needsLoginId: boolean }> {
-    const fn = httpsCallable<{ identifier: string; code: string }, { customToken: string; needsLoginId: boolean }>(
+  async verifyCode(
+    identifier: string,
+    code: string,
+  ): Promise<{ customToken: string; needsLoginId: boolean; hasPasskey?: boolean }> {
+    const fn = httpsCallable<
+      { identifier: string; code: string },
+      { customToken: string; needsLoginId: boolean; hasPasskey?: boolean }
+    >(
       this.functions,
       'verifyLoginCode',
     );

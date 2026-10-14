@@ -1,0 +1,81 @@
+.status {
+  margin: 16px 0 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f5f5f4;
+  color: #44403c;
+
+  &.on {
+    background: #ecfccb;
+    color: #365314;
+  }
+
+  &.warn {
+    background: #fef3c7;
+    color: #78350f;
+  }
+}
+
+.hint {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #78716c;
+  line-height: 1.6;
+}
+
+.steps {
+  margin: 8px 0;
+  padding-left: 1.4em;
+  line-height: 1.8;
+}
+
+.note {
+  margin-top: 28px;
+}
+
+// 共通のボタンの見た目(styles.scss)は、この画面(.list-page)には当たらないため、ここで付ける。
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+
+  &:hover:not(:disabled) {
+    background: #115e59;
+  }
+
+  &:disabled {
+    background: #a8a29e;
+    cursor: not-allowed;
+  }
+
+  &.secondary {
+    background: #fff;
+    color: #0f766e;
+    border: 1px solid #5eead4;
+    box-shadow: none;
+
+    &:hover:not(:disabled) {
+      background: #f0fdfa;
+    }
+
+    &:disabled {
+      background: #f5f5f4;
+      color: #a8a29e;
+      border-color: #d6d3d1;
+    }
+  }
+}

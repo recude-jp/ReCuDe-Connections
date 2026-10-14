@@ -12,6 +12,7 @@ import { PasskeyService } from '../../core/services/passkey.service';
 import { PinService } from '../../core/services/pin.service';
 import { LoginChannel, LoginChannels, LoginService } from '../../core/services/login.service';
 import { PinInput } from '../../shared/pin-input/pin-input';
+import { Spinner } from '../../shared/spinner/spinner';
 import { isAlreadyRegisteredError, toErrorMessage, toPasskeyErrorMessage } from '../../core/utils/errors';
 import { environment } from '../../../environments/environment';
 
@@ -30,7 +31,7 @@ type SetupStep = 'login-id' | 'passkey';
  */
 @Component({
   selector: 'app-member-login',
-  imports: [FormsModule, PinInput, FaIconComponent, RouterLink],
+  imports: [FormsModule, PinInput, FaIconComponent, RouterLink, Spinner],
   templateUrl: './member-login.html',
   styleUrl: './member-login.scss'
 })
@@ -55,9 +56,13 @@ export class MemberLogin {
   readonly otpCode = signal('');
   readonly pinCode = signal('');
   readonly loading = signal(false);
+  /** 処理中の操作(押したボタンにだけスピナーを出す)。 */
+  readonly busy = signal<string | null>(null);
   readonly errorMessage = signal('');
-  /** 入力したIDのパスキーを試せるか(この端末でそのIDのパスキーを使ったことがある)。 */
+  /** 入力したIDのパスキーを自動で試すか(この端末でそのIDのパスキーを使ったことがある)。 */
   readonly canTryPasskey = signal(false);
+  /** パスキーでログインのボタンを出すか(端末の記録が消えていても使えるよう、対応している端末では常に出す)。 */
+  readonly passkeySupported = this.passkey.isSupported();
   readonly pinSupported = signal(this.pin.isLocalPinConfigured('member'));
 
   readonly setupStep = signal<SetupStep | null>(null);
@@ -88,6 +93,7 @@ export class MemberLogin {
       return;
     }
     this.errorMessage.set('');
+    this.busy.set('next');
     this.loading.set(true);
     try {
       this.channels.set(await this.login.start(identifier));
@@ -107,6 +113,7 @@ export class MemberLogin {
   async signInWithPasskey(): Promise<void> {
     const identifier = this.identifier().trim();
     this.errorMessage.set('');
+    this.busy.set('passkey');
     this.loading.set(true);
     try {
       const { customToken, credentialId } = await this.passkey.login(identifier);
@@ -129,6 +136,7 @@ export class MemberLogin {
 
   async sendCode(channel: LoginChannel): Promise<void> {
     this.errorMessage.set('');
+    this.busy.set(channel);
     this.loading.set(true);
     try {
       await this.login.sendCode(this.identifier().trim(), channel);
@@ -145,16 +153,23 @@ export class MemberLogin {
   async confirmOtp(): Promise<void> {
     const identifier = this.identifier().trim();
     this.errorMessage.set('');
+    this.busy.set('otp');
     this.loading.set(true);
     try {
-      const { customToken, needsLoginId } = await this.login.verifyCode(identifier, this.otpCode());
+      const { customToken, needsLoginId, hasPasskey } = await this.login.verifyCode(identifier, this.otpCode());
       await this.auth.signInWithToken(customToken);
       if (this.auth.currentSession?.kind !== 'member') {
         await this.auth.signOut();
         throw new Error('ログインに失敗しました。');
       }
-      // この端末にパスキーが無ければ、トークに移る前に登録を勧める。
-      this.offerPasskey.set(this.passkey.isSupported() && !this.passkey.shouldTryPasskeyFor(identifier));
+      // パスキーをまだ登録していなければ、トークに移る前に登録を勧める。登録済みなら勧めず、
+      // 次回からこのIDでパスキーを試す(iPhoneなどで端末の記録が消えても、毎回登録を聞かないように)。
+      if (hasPasskey) {
+        this.passkey.rememberPasskeyFor([identifier]);
+      }
+      this.offerPasskey.set(
+        this.passkey.isSupported() && !hasPasskey && !this.passkey.shouldTryPasskeyFor(identifier),
+      );
       if (needsLoginId) {
         this.setupStep.set('login-id');
       } else if (this.offerPasskey()) {
@@ -189,6 +204,7 @@ export class MemberLogin {
 
   async signInWithPin(): Promise<void> {
     this.errorMessage.set('');
+    this.busy.set('pin');
     this.loading.set(true);
     try {
       const customToken = await this.pin.login('member', this.pinCode());
@@ -212,6 +228,7 @@ export class MemberLogin {
       return;
     }
     this.errorMessage.set('');
+    this.busy.set('loginId');
     this.loading.set(true);
     try {
       const saved = await this.login.setLoginId(loginId);
@@ -244,6 +261,7 @@ export class MemberLogin {
   /** ダイアログ: この端末にパスキーを登録して、トークへ。 */
   async registerPasskey(): Promise<void> {
     this.errorMessage.set('');
+    this.busy.set('register');
     this.loading.set(true);
     try {
       await this.passkey.register('member');

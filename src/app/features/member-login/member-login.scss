@@ -200,3 +200,8 @@ $accent: #0f766e;
     font-size: 0.85rem;
     text-align: center;
 }
+
+// 送り先のボタンでは、アイコン(2x)と同じ大きさで出す。
+.channel-spinner {
+  font-size: 2em;
+}

@@ -17,6 +17,7 @@ import { AuthService, canUseAdmin } from '../../core/services/auth.service';
 import { CommunityRow, MemberService } from '../../core/services/member.service';
 import { CommunityLogo } from '../community-logo/community-logo';
 import { CountBadge } from '../count-badge/count-badge';
+import { PushService } from '../../core/services/push.service';
 import { NotificationBadgeService } from '../../core/services/notification-badge.service';
 import { FaviconService } from '../../core/services/favicon.service';
 import type { Tenant } from '../../core/models/firestore.models';
@@ -61,6 +62,7 @@ export class MemberLayout {
   private readonly titleService = inject(Title);
   private readonly favicon = inject(FaviconService);
   private readonly badges = inject(NotificationBadgeService);
+  private readonly push = inject(PushService);
 
   /** メニューのバッジ(トーク: 未読のメッセージ、管理: 審査待ちの申請)。 */
   private readonly unreadTotal = toSignal(this.badges.unreadTotal$, { initialValue: 0 });
@@ -121,9 +123,23 @@ export class MemberLayout {
       .join('、'),
   );
 
+  /** ヘッダーの左端のアイコン。アプリのアイコン(ファビコン)があればそれを、なければロゴを出す(小さく出すため正方形のほうを優先)。 */
+  readonly brandIcon = computed(() => this.tenant()?.branding?.faviconUrl || this.tenant()?.branding?.logoUrl || null);
+
   readonly brandName = computed(() => this.tenant()?.branding?.siteTitle || DEFAULT_SITE_TITLE);
 
   constructor() {
+    // ホーム画面のアイコンのバッジを、未読のメッセージの合計に合わせる(閉じている間はプッシュ通知が更新する)。
+    effect(() => this.push.setBadge(this.unreadTotal()));
+
+    // 通知を受け取っている端末なら、登録をログイン中の会員に結び付け直す。
+    effect(() => {
+      const session = this.session();
+      if (session?.kind === 'member') {
+        void this.push.syncSubscription();
+      }
+    });
+
     effect(() => {
       this.titleService.setTitle(this.brandName());
       // テナントの設定を読み込む前の既定の名前は覚えない(次回の起動前の表示を、正しいサービス名にするため)。

@@ -46,7 +46,7 @@
         required
       />
       <p class="hint">招待のSMSを受け取った電話番号（招待を申請した方は、申請のときに入力した電話番号）を入力してください。この番号に認証コードをSMSでお送りします。</p>
-      <button type="submit" [disabled]="loading() || !phoneNumber()">認証コードを送信</button>
+      <button type="submit" [disabled]="loading() || !phoneNumber()">@if (loading()) { <app-spinner /> } 認証コードを送信</button>
     </form>
   }
 
@@ -59,7 +59,7 @@
         (valueChange)="otpCode.set($event)"
         (completed)="confirmOtp()"
       />
-      <button type="submit" [disabled]="loading() || otpCode().length !== 6">確認</button>
+      <button type="submit" [disabled]="loading() || otpCode().length !== 6">@if (loading()) { <app-spinner /> } 確認</button>
     </form>
     <p class="hint">
       {{ phoneNumber() }} あてに、6桁の認証コードをSMSでお送りしました（10分間有効）。届かないときは、1分ほど待ってから
@@ -128,6 +128,7 @@
         type="submit"
         [disabled]="loading() || !displayName().trim() || !loginId().trim() || !agreedAdminAccess() || needsAgreement()"
       >
+        @if (loading()) { <app-spinner /> }
         {{
           preview()?.community
             ? preview()!.community!.requireApproval
@@ -143,10 +144,10 @@
     <form (ngSubmit)="join()">
       @if (preview()?.alreadyInTarget) {
         <p class="placeholder">すでに参加しています。</p>
-        <button type="submit" [disabled]="loading()">トークを開く</button>
+        <button type="submit" [disabled]="loading()">@if (loading()) { <app-spinner /> } トークを開く</button>
       } @else if (preview()?.pendingApproval) {
         <p class="placeholder">参加の申請は審査中です。管理者が承認すると、メンバーになります。</p>
-        <button type="submit" [disabled]="loading()">トークを開く</button>
+        <button type="submit" [disabled]="loading()">@if (loading()) { <app-spinner /> } トークを開く</button>
       } @else if (preview()?.community; as c) {
         <p class="placeholder">
           @if (c.requireApproval) {
@@ -156,6 +157,7 @@
           }
         </p>
         <button type="submit" [disabled]="loading() || needsAgreement()">
+          @if (loading()) { <app-spinner /> }
           {{ c.requireApproval ? '「' + c.name + '」への参加を申請する' : '「' + c.name + '」に参加する' }}
         </button>
       }

@@ -147,6 +147,7 @@
         }
 
         <button type="submit" class="button primary" [disabled]="!canSubmit()">
+          @if (submitting()) { <app-spinner /> }
           {{ submitting() ? '送信しています...' : '申請する' }}
         </button>
         @if (!notEligible() && missingItems().length) {

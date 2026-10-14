@@ -25,7 +25,7 @@
         メールアドレスをログインIDとして設定している方は、メールアドレスでも入力できます。
         ログインIDが未設定の方は、電話番号を入力してください。
       </p>
-      <button type="submit" [disabled]="loading() || !identifier().trim()">次へ</button>
+      <button type="submit" [disabled]="loading() || !identifier().trim()">@if (loading() && busy() === 'next') { <app-spinner /> } 次へ</button>
     </form>
 
     @if (pinSupported()) {
@@ -39,9 +39,10 @@
       <button type="button" class="link-button" [disabled]="loading()" (click)="changeIdentifier()">変更</button>
     </p>
 
-    @if (canTryPasskey()) {
+    @if (passkeySupported) {
       <button type="button" class="passkey-button" [disabled]="loading()" (click)="signInWithPasskey()">
-        <fa-icon [icon]="faFingerprint" /> パスキーでログイン
+        @if (loading() && busy() === 'passkey') { <app-spinner /> } @else { <fa-icon [icon]="faFingerprint" /> }
+        パスキーでログイン
       </button>
     }
 
@@ -49,13 +50,13 @@
     <div class="channels">
       @if (channels().email) {
         <button type="button" class="channel" [disabled]="loading()" (click)="sendCode('email')">
-          <fa-icon [icon]="faEnvelope" size="2x" />
+          @if (loading() && busy() === 'email') { <app-spinner class="channel-spinner" /> } @else { <fa-icon [icon]="faEnvelope" size="2x" /> }
           <span>メール</span>
         </button>
       }
       @if (channels().sms) {
         <button type="button" class="channel" [disabled]="loading()" (click)="sendCode('sms')">
-          <fa-icon [icon]="faCommentSms" size="2x" />
+          @if (loading() && busy() === 'sms') { <app-spinner class="channel-spinner" /> } @else { <fa-icon [icon]="faCommentSms" size="2x" /> }
           <span>SMS</span>
         </button>
       }
@@ -74,7 +75,7 @@
         (valueChange)="otpCode.set($event)"
         (completed)="confirmOtp()"
       />
-      <button type="submit" [disabled]="loading() || otpCode().length !== 6">ログイン</button>
+      <button type="submit" [disabled]="loading() || otpCode().length !== 6">@if (loading() && busy() === 'otp') { <app-spinner /> } ログイン</button>
     </form>
     <p class="resend">
       <button type="button" class="link-button" [disabled]="loading()" (click)="backToChannels()">
@@ -92,7 +93,7 @@
         (valueChange)="pinCode.set($event)"
         (completed)="signInWithPin()"
       />
-      <button type="submit" [disabled]="loading() || pinCode().length !== 6">ログイン</button>
+      <button type="submit" [disabled]="loading() || pinCode().length !== 6">@if (loading() && busy() === 'pin') { <app-spinner /> } ログイン</button>
     </form>
     <p class="resend">
       <button type="button" class="link-button" [disabled]="loading()" (click)="changeIdentifier()">
@@ -128,7 +129,7 @@
           (ngModelChange)="newLoginId.set($event)"
         />
         <p class="hint">半角の英字・数字・「.」「_」「-」で4〜30文字（英字を1文字以上含めてください）</p>
-        <button type="submit" [disabled]="loading() || !newLoginId().trim()">設定する</button>
+        <button type="submit" [disabled]="loading() || !newLoginId().trim()">@if (loading() && busy() === 'loginId') { <app-spinner /> } 設定する</button>
       </form>
       <button type="button" class="link-button skip" [disabled]="loading()" (click)="skipLoginId()">
         あとで設定する
@@ -138,7 +139,7 @@
       <p>
         この端末にパスキーを登録すると、次回からは認証コードを待たずに、指紋認証・顔認証などでログインできます。
       </p>
-      <button type="button" [disabled]="loading()" (click)="registerPasskey()">パスキーを登録する</button>
+      <button type="button" [disabled]="loading()" (click)="registerPasskey()">@if (loading() && busy() === 'register') { <app-spinner /> } パスキーを登録する</button>
       <button type="button" class="link-button skip" [disabled]="loading()" (click)="finishSetup()">
         スキップ
       </button>

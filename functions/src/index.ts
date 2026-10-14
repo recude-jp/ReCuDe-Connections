@@ -46,6 +46,8 @@ export { sendConnectionRequest } from './sendConnectionRequest';
 export { respondToConnectionRequest } from './respondToConnectionRequest';
 export { createGroup, inviteToGroup, respondToGroupInvitation, setGroupAdmin, leaveGroup } from './groups';
 export { onRoomMessageCreated } from './onRoomMessageCreated';
+export { savePushSubscription, deletePushSubscription } from './push';
+export { onGroupInvitationCreated, onConnectionWritten } from './pushTriggers';
 export { startPasskeyRegistration } from './startPasskeyRegistration';
 export { completePasskeyRegistration } from './completePasskeyRegistration';
 export { startPasskeyAuthentication } from './startPasskeyAuthentication';

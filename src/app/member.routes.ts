@@ -120,6 +120,11 @@ export const MEMBER_ROUTES: Routes = [
             loadComponent: () =>
               import('./features/passkey-settings/passkey-settings').then((m) => m.PasskeySettings),
           },
+          {
+            path: 'notifications',
+            loadComponent: () =>
+              import('./features/notification-settings/notification-settings').then((m) => m.NotificationSettings),
+          },
         ],
       },
 

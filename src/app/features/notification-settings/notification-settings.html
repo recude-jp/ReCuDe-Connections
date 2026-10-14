@@ -1,0 +1,61 @@
+<div class="list-page">
+  <h2>通知</h2>
+  <p class="placeholder intro">
+    新しいメッセージ、グループへの招待、コネクト申請が届いたときに、この端末に通知でお知らせします。
+    ホーム画面のアイコンには、未読のメッセージの数を表示します。
+  </p>
+
+  @if (loaded()) {
+    @switch (state()) {
+      @case ('on') {
+        <div class="status on">この端末で通知を受け取っています。</div>
+        <button type="button" class="toggle secondary" [disabled]="busy()" (click)="disable()">
+          @if (busy()) { <app-spinner /> } @else { <fa-icon [icon]="bellOffIcon" /> }
+          通知をオフにする
+        </button>
+      }
+      @case ('off') {
+        <div class="status">この端末では、通知を受け取っていません。</div>
+        <button type="button" class="toggle" [disabled]="busy()" (click)="enable()">
+          @if (busy()) { <app-spinner /> } @else { <fa-icon [icon]="bellIcon" /> }
+          通知をオンにする
+        </button>
+        <p class="hint">ボタンを押すと、通知を許可するかどうかを聞かれます。「許可」を選んでください。</p>
+      }
+      @case ('denied') {
+        <div class="status warn">この端末では、通知がブロックされています。</div>
+        @if (isIos) {
+          <p class="hint">iPhone の「設定」→「通知」→ このアプリ を開き、「通知を許可」をオンにしてから、この画面を開き直してください。</p>
+        } @else {
+          <p class="hint">
+            ブラウザのアドレスバーの左にある鍵などのアイコン →「サイトの設定」（Android のホーム画面のアプリでは、アプリ情報 →「通知」）で、
+            通知を許可してから、この画面を開き直してください。
+          </p>
+        }
+      }
+      @case ('needs-install') {
+        <div class="status warn">iPhone・iPad では、ホーム画面に追加したアプリで通知を受け取れます。</div>
+        <ol class="steps">
+          <li>この画面を <strong>Safari</strong> で開きます（LINE などのアプリの中で開いている場合は、メニューの「ブラウザで開く」「Safariで開く」を選びます）。</li>
+          <li>画面の下（iPad では上）にある <strong>共有ボタン</strong>（四角から上向きの矢印）を押します。</li>
+          <li><strong>「ホーム画面に追加」</strong>を選び、「追加」を押します。</li>
+          <li>ホーム画面に追加されたアイコンから開いてログインし、マイページ →「通知」で <strong>「通知をオンにする」</strong>を押します。</li>
+        </ol>
+        <p class="hint">iOS 16.4 以降が必要です。ホーム画面のアプリから開くと、ログインした状態も残りやすくなります。</p>
+      }
+      @default {
+        <div class="status warn">このブラウザ・端末は、通知に対応していません。</div>
+        <p class="hint">Android は Chrome、iPhone・iPad はホーム画面に追加したアプリ、パソコンは Chrome・Edge・Safari でお使いください。</p>
+      }
+    }
+  }
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  <p class="hint note">
+    トークは端末どうしで暗号化しているため、通知にはメッセージの中身は表示されません（送った人の名前とグループ名だけです）。
+    通知の設定は端末ごとです。ログアウトすると、その端末には通知が届かなくなります。
+  </p>
+</div>

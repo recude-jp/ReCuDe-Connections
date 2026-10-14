@@ -8,6 +8,7 @@ import { InvitePreview, InviteService } from '../../core/services/invite.service
 import { PublicBrandingService } from '../../core/services/public-branding.service';
 import { FaviconService } from '../../core/services/favicon.service';
 import { PinInput } from '../../shared/pin-input/pin-input';
+import { Spinner } from '../../shared/spinner/spinner';
 import { CommunityLogo } from '../../shared/community-logo/community-logo';
 import { MembershipTermsView } from '../../shared/membership-terms/membership-terms';
 import { toE164 } from '../../core/utils/phone';
@@ -30,7 +31,7 @@ type Step = 'phone' | 'otp' | 'name' | 'confirm' | 'submitted';
  */
 @Component({
   selector: 'app-join',
-  imports: [FormsModule, RouterLink, PinInput, CommunityLogo, MembershipTermsView],
+  imports: [FormsModule, RouterLink, PinInput, CommunityLogo, MembershipTermsView, Spinner],
   templateUrl: './join.html',
   styleUrl: './join.scss',
 })

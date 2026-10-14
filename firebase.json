@@ -17,6 +17,12 @@
   "hosting": {
     "public": "dist/recude-match/browser",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [
+      {
+        "source": "/@(sw.js|ngsw-worker.js|ngsw.json)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ],
     "rewrites": [
       {
         "source": "**",
