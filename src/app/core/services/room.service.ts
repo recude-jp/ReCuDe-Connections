@@ -22,6 +22,7 @@ import type {
   GroupInvitationNotice,
   Member,
   MessageContent,
+  MessageReply,
   MessageMedia,
   Room,
   RoomInvitation,
@@ -113,13 +114,20 @@ export class RoomService {
     >;
   }
 
-  async sendText(tenantId: string, room: RoomKeyContext, senderId: string, text: string): Promise<void> {
-    await this.send(tenantId, room, senderId, 'text', { text });
+  /** replyTo は返信先(返信でなければ省く)。スタンプ・画像も同じ。 */
+  async sendText(tenantId: string, room: RoomKeyContext, senderId: string, text: string, replyTo?: MessageReply): Promise<void> {
+    await this.send(tenantId, room, senderId, 'text', { text, ...withReply(replyTo) });
   }
 
-  async sendStamp(tenantId: string, room: RoomKeyContext, senderId: string, stamp: StampRef): Promise<void> {
+  async sendStamp(
+    tenantId: string,
+    room: RoomKeyContext,
+    senderId: string,
+    stamp: StampRef,
+    replyTo?: MessageReply,
+  ): Promise<void> {
     const ref: StampRef = { packId: stamp.packId, stampId: stamp.stampId, ...(stamp.ownerId ? { ownerId: stamp.ownerId } : {}) };
-    await this.send(tenantId, room, senderId, 'stamp', { stamp: ref });
+    await this.send(tenantId, room, senderId, 'stamp', { stamp: ref, ...withReply(replyTo) });
   }
 
   /**
@@ -132,6 +140,7 @@ export class RoomService {
     senderId: string,
     image: PreparedImage,
     onProgress?: (ratio: number) => void,
+    replyTo?: MessageReply,
   ): Promise<void> {
     const messageRef = doc(collection(this.firestore, `tenants/${tenantId}/rooms/${room.id}/messages`));
     const mediaPath = `tenants/${tenantId}/rooms/${room.id}/media/${messageRef.id}`;
@@ -173,7 +182,7 @@ export class RoomService {
       size: image.original.size,
       epoch: original.epoch,
     };
-    const enc = await this.e2ee.encryptMessage(room, messageRef.id, senderId, { media } satisfies MessageContent);
+    const enc = await this.e2ee.encryptMessage(room, messageRef.id, senderId, { media, ...withReply(replyTo) } satisfies MessageContent);
     await setDoc(messageRef, { senderId, type: 'image', enc, status: 'ready', createdAt: serverTimestamp() });
   }
 
@@ -272,4 +281,9 @@ export class RoomService {
     const enc = await this.e2ee.encryptMessage(room, messageRef.id, senderId, content);
     await setDoc(messageRef, { senderId, type, enc, status: 'ready', createdAt: serverTimestamp() });
   }
+}
+
+/** 返信先を、暗号化する中身に入れる形にする(Firestore に undefined は書けないため、返信でなければ何も足さない)。 */
+function withReply(replyTo: MessageReply | undefined): Pick<MessageContent, 'replyTo'> {
+  return replyTo ? { replyTo: { messageId: replyTo.messageId, senderId: replyTo.senderId, preview: replyTo.preview } } : {};
 }

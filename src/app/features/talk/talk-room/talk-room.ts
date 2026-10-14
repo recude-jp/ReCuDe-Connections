@@ -3,12 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FaIconComponent } from '@fortawesome/angular-fontawesome';
-import { faChevronLeft, faCircleInfo, faFaceSmile, faImage } from '@fortawesome/free-solid-svg-icons';
+import { faChevronLeft, faCircleInfo, faFaceSmile, faImage, faReply, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { combineLatest, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { AuthService, MemberSession } from '../../../core/services/auth.service';
 import { MemberService } from '../../../core/services/member.service';
 import { RoomService, WithId } from '../../../core/services/room.service';
-import type { Member, MessageContent, RoomMessage, StampRef } from '../../../core/models/firestore.models';
+import type { Member, MessageContent, MessageReply, RoomMessage, StampRef } from '../../../core/models/firestore.models';
 import { E2eeService, RoomKeyContext } from '../../../core/services/e2ee.service';
 import { MESSAGE_TEMPLATES, politenessTierFor } from '../../../core/utils/message-templates';
 import { prepareImage } from '../../../core/utils/image';
@@ -22,6 +22,7 @@ import { MemberProfileDialog } from '../member-profile-dialog/member-profile-dia
 import { ReactionPicker } from '../reaction-picker/reaction-picker';
 import { formatMessageTime } from '../../../core/utils/dates';
 import { toErrorMessage } from '../../../core/utils/errors';
+import { linkify, TextSegment } from '../../../core/utils/linkify';
 
 /** 一度に読むメッセージの件数(遡るときはこの件数ずつ増やす。SPEC 5-7)。 */
 const PAGE_SIZE = 30;
@@ -29,11 +30,34 @@ const PAGE_SIZE = 30;
 /** 鍵が届いていないメッセージを、読み直す間隔(ほかのメンバーが鍵を渡してくれるのを待つ)。 */
 const KEY_RETRY_MS = 15_000;
 
+/** 同じ人がこの時間内に続けて送ったメッセージは、ひとかたまりに見せる(2通目からプロフィール画像と名前を省き、時刻は最後の1通だけ)。 */
+const CONTINUE_WITHIN_MS = 5 * 60_000;
+
+/** 返信先の要約の長さ(これより長い文は … で切る)。 */
+const REPLY_PREVIEW_LENGTH = 60;
+
+/** 返信先へ移動したとき、返信先のメッセージを目立たせる時間。 */
+const HIGHLIGHT_MS = 1500;
+
+/** 入力欄が広がる高さの上限(これを超えたら入力欄の中をスクロールする)。 */
+const COMPOSER_MAX_HEIGHT_PX = 120;
+
 /**
  * 表示するメッセージ。暗号化したメッセージは、復号した中身(text・stamp・media)を重ねる。
  * decrypt: plain(暗号化を入れる前のメッセージ)、ok(復号できた)、pending(復号中)、no-key(鍵がまだ届いていない)、error(復号できない)。
  */
-export type DisplayMessage = WithId<RoomMessage> & { decrypt: 'plain' | 'ok' | 'pending' | 'no-key' | 'error' };
+export type DisplayMessage = WithId<RoomMessage> & {
+  decrypt: 'plain' | 'ok' | 'pending' | 'no-key' | 'error';
+  /** 返信先(暗号化した中身にだけ入る)。 */
+  replyTo?: MessageReply;
+};
+
+/** 返信のメッセージの頭に出す、返信先の要約。 */
+export interface ReplyQuote {
+  messageId: string;
+  senderName: string;
+  preview: string;
+}
 
 type DecryptResult = { status: 'ok'; content: MessageContent } | { status: 'no-key' } | { status: 'error' };
 
@@ -60,7 +84,7 @@ type DecryptResult = { status: 'ok'; content: MessageContent } | { status: 'no-k
   styleUrl: './talk-room.scss',
   host: {
     '(document:click)': 'closeReactionPickerOnOutsideClick($event)',
-    '(document:keydown.escape)': 'reactionTargetId.set(null)',
+    '(document:keydown.escape)': 'onEscape()',
   },
 })
 export class TalkRoom {
@@ -70,7 +94,14 @@ export class TalkRoom {
   private readonly memberService = inject(MemberService);
   private readonly e2ee = inject(E2eeService);
 
-  readonly icons = { back: faChevronLeft, info: faCircleInfo, stamp: faFaceSmile, image: faImage };
+  readonly icons = {
+    back: faChevronLeft,
+    info: faCircleInfo,
+    stamp: faFaceSmile,
+    image: faImage,
+    reply: faReply,
+    close: faXmark,
+  };
   readonly templates = MESSAGE_TEMPLATES;
   readonly formatTime = formatMessageTime;
 
@@ -166,9 +197,58 @@ export class TalkRoom {
         return { ...message, decrypt: 'pending' as const };
       }
       return result.status === 'ok'
-        ? { ...message, ...result.content, decrypt: 'ok' as const }
+        ? { ...message, ...pickContent(result.content), decrypt: 'ok' as const }
         : { ...message, decrypt: result.status };
     });
+  });
+
+  /** 文のメッセージを、普通の文字と URL(リンクにする)に分けたもの(メッセージID → 分けた結果)。 */
+  readonly textSegments = computed(() => {
+    const segments = new Map<string, TextSegment[]>();
+    for (const message of this.displayMessages()) {
+      if (message.text) {
+        segments.set(message.id, linkify(message.text));
+      }
+    }
+    return segments;
+  });
+
+  private readonly messagesById = computed(() => new Map(this.displayMessages().map((m) => [m.id, m])));
+
+  /**
+   * 返信のメッセージの頭に出す、返信先の要約(メッセージID → 要約)。返信先が画面に読み込まれていれば、
+   * 送った人の書いた要約ではなく、返信先そのものから作る(要約を偽って、ほかの人の発言に見せかけられないように)。
+   */
+  readonly replyQuotes = computed(() => {
+    const quotes = new Map<string, ReplyQuote>();
+    for (const message of this.displayMessages()) {
+      const reply = message.replyTo;
+      if (!reply || message.status === 'removed') {
+        continue;
+      }
+      const original = this.messagesById().get(reply.messageId);
+      const readable = original && (original.status === 'removed' || original.decrypt === 'plain' || original.decrypt === 'ok');
+      quotes.set(message.id, {
+        messageId: reply.messageId,
+        senderName: this.senderNameById(readable ? original.senderId : reply.senderId),
+        preview: readable ? this.replyPreviewOf(original) : reply.preview,
+      });
+    }
+    return quotes;
+  });
+
+  /**
+   * メッセージごとに、直前・直後のメッセージと同じかたまりか(同じ人が CONTINUE_WITHIN_MS 以内に続けて送ったか)。
+   * fromPrevious: 2通目以降(プロフィール画像と名前を省く)。toNext: 最後の1通ではない(時刻を省く)。
+   */
+  readonly continuation = computed(() => {
+    const messages = this.displayMessages();
+    const continues = (a: DisplayMessage | undefined, b: DisplayMessage | undefined) =>
+      !!a && !!b && a.senderId === b.senderId && Math.abs(sentAtMillis(b) - sentAtMillis(a)) <= CONTINUE_WITHIN_MS;
+    return messages.map((message, i) => ({
+      fromPrevious: continues(messages[i - 1], message),
+      toNext: continues(message, messages[i + 1]),
+    }));
   });
 
   /** 鍵が届いていないメッセージがあるか(あれば、しばらくしてから読み直す)。 */
@@ -202,6 +282,11 @@ export class TalkRoom {
   readonly hasOlder = computed(() => this.messages().length >= this.messageCount());
 
   readonly draftText = signal('');
+  /** 返信しようとしているメッセージ(返信のボタンで選ぶ。送ったら外す)。 */
+  readonly replyTarget = signal<DisplayMessage | null>(null);
+  /** 返信先へ移動して、目立たせているメッセージ。 */
+  readonly highlightedId = signal<string | null>(null);
+  private highlightTimer?: ReturnType<typeof setTimeout>;
   readonly sending = signal(false);
   readonly errorMessage = signal('');
 
@@ -219,14 +304,23 @@ export class TalkRoom {
   readonly lightboxUrl = signal<string | null>(null);
 
   private readonly messagesEnd = viewChild<ElementRef<HTMLDivElement>>('messagesEnd');
+  private readonly composerInput = viewChild<ElementRef<HTMLTextAreaElement>>('composerInput');
   /** 遡って読み込んだときは最下部へスクロールしない。 */
   private scrollToBottom = true;
 
   constructor() {
+    // 例文を入れたとき・送信して空にしたときも、入力欄の高さを合わせ直す。
+    effect(() => {
+      this.draftText();
+      this.composerInput();
+      queueMicrotask(() => this.resizeComposer());
+    });
+
     effect(() => {
       this.roomId();
       this.messageCount.set(PAGE_SIZE);
       this.draftText.set('');
+      this.replyTarget.set(null);
       this.errorMessage.set('');
       this.stampPanelOpen.set(false);
       this.reactionTargetId.set(null);
@@ -333,8 +427,9 @@ export class TalkRoom {
     this.sending.set(true);
     this.scrollToBottom = true;
     try {
-      await this.roomService.sendText(session.tenantId, room, session.memberId, text);
+      await this.roomService.sendText(session.tenantId, room, session.memberId, text, this.replyFor());
       this.draftText.set('');
+      this.replyTarget.set(null);
     } catch (err) {
       this.errorMessage.set(toErrorMessage(err));
     } finally {
@@ -355,9 +450,10 @@ export class TalkRoom {
     this.errorMessage.set('');
     this.scrollToBottom = true;
     try {
-      await this.roomService.sendStamp(session.tenantId, room, session.memberId, stamp);
+      await this.roomService.sendStamp(session.tenantId, room, session.memberId, stamp, this.replyFor());
       // 送ったスタンプがトークに出たら、スタンプのパネルを閉じる(送れなかったときは選び直せるよう開いたまま)。
       this.stampPanelOpen.set(false);
+      this.replyTarget.set(null);
     } catch (err) {
       this.errorMessage.set(toErrorMessage(err));
     }
@@ -375,14 +471,22 @@ export class TalkRoom {
     this.errorMessage.set('');
     this.scrollToBottom = true;
 
+    // 画像は送り終わるまで時間がかかるため、返信先は選んだ時点で決めて外す(送っている間に次の返信を選べるように)。
+    const replyTo = this.replyFor();
+    this.replyTarget.set(null);
     const id = ++this.uploadSeq;
     const previewUrl = URL.createObjectURL(file);
     this.uploads.update((list) => [...list, { id, previewUrl, progress: 0 }]);
     queueMicrotask(() => this.messagesEnd()?.nativeElement.scrollIntoView({ block: 'end' }));
     try {
       const image = await prepareImage(file);
-      await this.roomService.sendImage(session.tenantId, room, session.memberId, image, (progress) =>
-        this.uploads.update((list) => list.map((u) => (u.id === id ? { ...u, progress } : u))),
+      await this.roomService.sendImage(
+        session.tenantId,
+        room,
+        session.memberId,
+        image,
+        (progress) => this.uploads.update((list) => list.map((u) => (u.id === id ? { ...u, progress } : u))),
+        replyTo,
       );
     } catch (err) {
       this.errorMessage.set(toErrorMessage(err));
@@ -467,13 +571,122 @@ export class TalkRoom {
   }
 
   senderName(message: RoomMessage): string {
-    return this.membersById().get(message.senderId)?.displayName ?? '退出したメンバー';
+    return this.senderNameById(message.senderId);
   }
 
-  /** グループで、直前と送信者が変わったメッセージにだけ送信者名を出す。 */
-  showSender(index: number): boolean {
-    const messages = this.displayMessages();
-    const message = messages[index];
-    return this.isGroup() && !this.isMine(message) && messages[index - 1]?.senderId !== message.senderId;
+  private senderNameById(memberId: string): string {
+    if (memberId === this.memberSession()?.memberId) {
+      return 'あなた';
+    }
+    return this.membersById().get(memberId)?.displayName ?? '退出したメンバー';
   }
+
+  /** 返信できるメッセージか(削除したもの・まだ読めないものには返信できない)。 */
+  canReply(message: DisplayMessage): boolean {
+    return message.status !== 'removed' && (message.decrypt === 'plain' || message.decrypt === 'ok');
+  }
+
+  /** 返信のボタンを押したとき。入力欄の上に返信先を出し、すぐ書き始められるようにする。 */
+  startReply(message: DisplayMessage): void {
+    this.replyTarget.set(message);
+    this.reactionTargetId.set(null);
+    queueMicrotask(() => this.composerInput()?.nativeElement.focus());
+  }
+
+  /** 返信先の要約(文は1行にして切る。スタンプ・写真は種類だけ)。 */
+  replyPreviewOf(message: DisplayMessage): string {
+    if (message.status === 'removed') {
+      return '（削除されたメッセージ）';
+    }
+    if (message.type === 'image') {
+      return '写真';
+    }
+    if (message.type === 'stamp') {
+      return 'スタンプ';
+    }
+    const text = (message.text ?? '').replace(/\s+/g, ' ').trim();
+    return text.length > REPLY_PREVIEW_LENGTH ? `${text.slice(0, REPLY_PREVIEW_LENGTH)}…` : text;
+  }
+
+  /** 送るメッセージに付ける返信先(返信でなければ undefined)。 */
+  private replyFor(): MessageReply | undefined {
+    const target = this.replyTarget();
+    return target ? { messageId: target.id, senderId: target.senderId, preview: this.replyPreviewOf(target) } : undefined;
+  }
+
+  /** 返信の頭の要約を押したとき、返信先へ移動して少しの間目立たせる(読み込まれていなければ何もしない)。 */
+  jumpToMessage(messageId: string): void {
+    const element = document.getElementById(`message-${messageId}`);
+    if (!element) {
+      return;
+    }
+    element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    this.highlightedId.set(messageId);
+    clearTimeout(this.highlightTimer);
+    this.highlightTimer = setTimeout(() => this.highlightedId.set(null), HIGHLIGHT_MS);
+  }
+
+  /** Esc キー: 開いているリアクションの選択肢を閉じる。開いていなければ、返信をやめる。 */
+  onEscape(): void {
+    if (this.reactionTargetId()) {
+      this.reactionTargetId.set(null);
+    } else {
+      this.replyTarget.set(null);
+    }
+  }
+
+  /** グループで、かたまりの最初のメッセージにだけ送信者名を出す。 */
+  showSender(index: number): boolean {
+    const message = this.displayMessages()[index];
+    return this.isGroup() && !this.isMine(message) && !this.continuation()[index]?.fromPrevious;
+  }
+
+  /**
+   * 入力欄で Enter を押したとき。パソコンでは送信し(Shift+Enter は改行)、スマホでは改行する(送信はボタン)。
+   * 日本語の変換を確定する Enter では送信しない。
+   */
+  onComposerEnter(event: KeyboardEvent): void {
+    if (event.shiftKey || event.isComposing || event.keyCode === 229 || matchMedia('(pointer: coarse)').matches) {
+      return;
+    }
+    event.preventDefault();
+    void this.sendText();
+  }
+
+  /** 入力欄の高さを、書いた行数に合わせる(上限を超えたら中をスクロール)。 */
+  private resizeComposer(): void {
+    const textarea = this.composerInput()?.nativeElement;
+    if (!textarea) {
+      return;
+    }
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > COMPOSER_MAX_HEIGHT_PX ? 'auto' : 'hidden';
+  }
+}
+
+/**
+ * 復号した中身から、画面に出す項目だけを取り出す(中身に senderId などが紛れ込んでいても、メッセージの本来の値を上書きしない)。
+ */
+function pickContent(content: MessageContent): MessageContent {
+  const { text, stamp, media, replyTo } = content;
+  return {
+    ...(typeof text === 'string' ? { text } : {}),
+    ...(stamp ? { stamp } : {}),
+    ...(media ? { media } : {}),
+    ...(isReply(replyTo)
+      ? { replyTo: { messageId: replyTo.messageId, senderId: replyTo.senderId, preview: replyTo.preview.slice(0, REPLY_PREVIEW_LENGTH + 1) } }
+      : {}),
+  };
+}
+
+function isReply(value: unknown): value is MessageReply {
+  const reply = value as Partial<MessageReply> | undefined;
+  return typeof reply?.messageId === 'string' && typeof reply.senderId === 'string' && typeof reply.preview === 'string';
+}
+
+/** メッセージを送った時刻(送信直後でサーバーの時刻がまだ付いていないものは、今)。 */
+function sentAtMillis(message: RoomMessage): number {
+  const value = message.createdAt;
+  return value && 'toMillis' in value ? value.toMillis() : Date.now();
 }

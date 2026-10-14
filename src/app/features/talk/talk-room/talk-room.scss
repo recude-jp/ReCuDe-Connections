@@ -119,10 +119,51 @@ $accent: #0f766e;
       align-items: flex-end;
     }
 
+    // アクセントの緑より少しだけ薄くする(白い文字が読みやすい濃さ・コントラスト比 4.5 以上を保つ)。
     .bubble:not(.legacy-stamp):not(.removed) {
-      background: $accent;
+      background: #11827a;
       color: #fff;
     }
+  }
+
+  // 同じ人が続けて送ったメッセージは、すき間を狭くしてひとかたまりに見せる(.messages の gap 6px → 2px)。
+  // かたまりの中では、隣の吹き出しとくっつく側(上・下)の角の丸みを小さくする(中間のメッセージは四隅とも)。
+  &.continued {
+    margin-top: -4px;
+
+    .bubble {
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+    }
+  }
+
+  // 返信のメッセージは、上の返信先の要約とくっつく側(上)の角の丸みを小さくする。
+  &.has-reply .bubble {
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+  }
+
+  // 文の返信は、返信先の要約の下の端を吹き出しに少し重ねて、一体に見せる(要約の文が隠れないよう、その分だけ下を空ける)。
+  // 写真・スタンプの返信は重ねない(透けて見えるため)。
+  .reply-quote:has(+ .bubble-line > .bubble) {
+    margin-bottom: -6px;
+    padding-bottom: 10px;
+
+    + .bubble-line {
+      position: relative;
+    }
+  }
+
+  &.joins-next .bubble {
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+  }
+
+  // 返信先へ移動したとき、少しの間だけ背景に色を付けて目立たせる。
+  &.highlight {
+    border-radius: 12px;
+    background: #ccfbf1;
+    transition: background 0.3s;
   }
 
   // PCではマウスを乗せたときだけリアクションのボタンを出す(スマホでは常に出す)。
@@ -130,6 +171,11 @@ $accent: #0f766e;
   .react-button.active {
     opacity: 1;
   }
+}
+
+// 続けて送った2通目からは、プロフィール画像の分の場所だけ空ける(app-member-avatar の size と同じ幅)。
+.message-avatar-space {
+  flex: 0 0 32px;
 }
 
 .message-avatar {
@@ -161,6 +207,38 @@ $accent: #0f766e;
   color: #78716c;
 }
 
+// 返信のメッセージの頭に出す、返信先の要約。
+.reply-quote {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+  margin: 2px 0;
+  padding: 4px 10px;
+  border: none;
+  border-left: 3px solid #5eead4;
+  border-radius: 6px;
+  background: #e7e5e4;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.reply-quote-name,
+.reply-bar-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #57534e;
+}
+
+.reply-quote-text,
+.reply-bar-text {
+  overflow: hidden;
+  font-size: 0.8rem;
+  color: #78716c;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .bubble-line {
   display: flex;
   align-items: flex-end;
@@ -182,6 +260,12 @@ $accent: #0f766e;
     padding: 0;
   }
 
+  a {
+    color: inherit;
+    text-decoration: underline;
+    word-break: break-all;
+  }
+
   &.removed {
     color: #a8a29e;
     font-style: italic;
@@ -194,6 +278,12 @@ $accent: #0f766e;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+}
+
+// リアクションと返信のボタンを横に並べる(自分のメッセージは返信のボタンだけ)。
+.side-buttons {
+  display: flex;
+  align-items: center;
 }
 
 .time {
@@ -261,6 +351,29 @@ $accent: #0f766e;
   background: #fff;
 }
 
+// 入力欄の上の、返信先。
+.reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 4px 4px 4px 10px;
+  border-left: 3px solid #5eead4;
+  border-radius: 6px;
+  background: #f5f5f4;
+}
+
+.reply-bar-icon {
+  color: $accent;
+}
+
+.reply-bar-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .templates {
   display: flex;
   gap: 6px;
@@ -285,17 +398,21 @@ $accent: #0f766e;
 
 .input-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
 
-  input {
+  // 書いた行数に合わせて高さが広がる(talk-room.ts の resizeComposer)。
+  textarea {
     flex: 1;
     min-width: 0;
-    padding: 10px 12px;
+    padding: 9px 14px;
     border: 1px solid #d6d3d1;
-    border-radius: 999px;
+    border-radius: 20px;
     font-size: 1rem;
     font-family: inherit;
+    line-height: 1.4;
+    resize: none;
+    overflow-y: hidden;
   }
 
   .send {

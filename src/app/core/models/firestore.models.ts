@@ -394,11 +394,22 @@ export interface EncryptedPayload {
   ct: string;
 }
 
+/**
+ * 返信先のメッセージ。暗号化する中身に入れる(サーバーには、どのメッセージへの返信かも見えない)。
+ * preview は送った時点の返信先の要約(返信先が画面に読み込まれていないときに出す)。
+ */
+export interface MessageReply {
+  messageId: string;
+  senderId: string;
+  preview: string;
+}
+
 /** 暗号化するメッセージの中身。 */
 export interface MessageContent {
   text?: string;
   stamp?: StampRef;
   media?: MessageMedia;
+  replyTo?: MessageReply;
 }
 
 /**

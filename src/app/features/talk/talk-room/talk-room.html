@@ -28,9 +28,17 @@
         <button type="button" class="load-older" (click)="loadOlder()">以前のメッセージを読み込む</button>
       }
       @for (message of displayMessages(); track message.id; let i = $index) {
-        <div class="message-row" [class.mine]="isMine(message)">
-          <!-- 自分以外のメッセージの頭に、送った人のプロフィール画像(未登録なら名前の最初の1文字)を出す。押すとプロフィール。 -->
-          @if (!isMine(message)) {
+        <div
+          class="message-row"
+          [id]="'message-' + message.id"
+          [class.highlight]="highlightedId() === message.id"
+          [class.mine]="isMine(message)"
+          [class.has-reply]="replyQuotes().has(message.id)" [class.continued]="continuation()[i].fromPrevious" [class.joins-next]="continuation()[i].toNext">
+          <!-- 自分以外のメッセージの頭に、送った人のプロフィール画像(未登録なら名前の最初の1文字)を出す。押すとプロフィール。
+               同じ人が続けて送った2通目からは出さず、吹き出しの位置をそろえるため場所だけ空ける。 -->
+          @if (!isMine(message) && continuation()[i].fromPrevious) {
+            <span class="message-avatar-space" aria-hidden="true"></span>
+          } @else if (!isMine(message)) {
             <button
               type="button"
               class="message-avatar"
@@ -49,6 +57,13 @@
           <div class="message-body">
             @if (showSender(i)) {
               <span class="sender">{{ senderName(message) }}</span>
+            }
+            <!-- 返信のメッセージは、頭に返信先の要約を出す。押すと返信先へ移動する。 -->
+            @if (replyQuotes().get(message.id); as quote) {
+              <button type="button" class="reply-quote" (click)="jumpToMessage(quote.messageId)">
+                <span class="reply-quote-name"><fa-icon [icon]="icons.reply" /> {{ quote.senderName }}</span>
+                <span class="reply-quote-text">{{ quote.preview }}</span>
+              </button>
             }
             <div class="bubble-line">
               @if (message.status === 'removed') {
@@ -70,32 +85,42 @@
                   <app-stamp-image [stamp]="ref" />
                 }
               } @else {
-                <span class="bubble">{{ message.text }}</span>
+                <!-- 文の中の URL はリンクにする(吹き出しは pre-wrap のため、空白や改行を入れないよう1行で書く)。 -->
+                <span class="bubble">@for (segment of textSegments().get(message.id) ?? []; track $index) {@if (segment.url) {<a [href]="segment.url" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>} @else {<ng-container>{{ segment.text }}</ng-container>}}</span>
               }
               <span class="side">
-                <!-- リアクションは自分以外のメッセージにだけ付けられる。選択肢はボタンのすぐ右(場所が無ければ左)に出す。 -->
-                @if (message.status !== 'removed' && !isMine(message)) {
-                  <span class="react-anchor">
-                    <button
-                      type="button"
-                      class="react-button"
-                      [class.active]="reactionTargetId() === message.id"
-                      aria-label="リアクションする"
-                      [attr.aria-expanded]="reactionTargetId() === message.id"
-                      (click)="toggleReactionPicker(message.id, $event)"
-                    >
-                      <fa-icon [icon]="icons.stamp" />
+                <span class="side-buttons">
+                  <!-- リアクションは自分以外のメッセージにだけ付けられる。選択肢はボタンのすぐ右(場所が無ければ左)に出す。 -->
+                  @if (message.status !== 'removed' && !isMine(message)) {
+                    <span class="react-anchor">
+                      <button
+                        type="button"
+                        class="react-button"
+                        [class.active]="reactionTargetId() === message.id"
+                        aria-label="リアクションする"
+                        [attr.aria-expanded]="reactionTargetId() === message.id"
+                        (click)="toggleReactionPicker(message.id, $event)"
+                      >
+                        <fa-icon [icon]="icons.stamp" />
+                      </button>
+                      @if (reactionTargetId() === message.id) {
+                        <app-reaction-picker
+                          [class.to-left]="reactionPickerToLeft()"
+                          [selected]="myReaction(message)"
+                          (picked)="react(message, $event)"
+                        />
+                      }
+                    </span>
+                  }
+                  @if (canReply(message)) {
+                    <button type="button" class="react-button" aria-label="返信する" (click)="startReply(message)">
+                      <fa-icon [icon]="icons.reply" />
                     </button>
-                    @if (reactionTargetId() === message.id) {
-                      <app-reaction-picker
-                        [class.to-left]="reactionPickerToLeft()"
-                        [selected]="myReaction(message)"
-                        (picked)="react(message, $event)"
-                      />
-                    }
-                  </span>
+                  }
+                </span>
+                @if (!continuation()[i].toNext) {
+                  <span class="time">{{ formatTime(message.createdAt) }}</span>
                 }
-                <span class="time">{{ formatTime(message.createdAt) }}</span>
               </span>
             </div>
 
@@ -149,6 +174,20 @@
         <app-stamp-picker (picked)="sendStamp($event)" />
       }
 
+      <!-- 返信先(返信のボタンで選ぶ)。文・スタンプ・写真のどれを送っても、この返信先への返信になる。 -->
+      @if (replyTarget(); as target) {
+        <div class="reply-bar">
+          <fa-icon class="reply-bar-icon" [icon]="icons.reply" />
+          <div class="reply-bar-body">
+            <span class="reply-bar-name">{{ isMine(target) ? '自分' : senderName(target) + 'さん' }}への返信</span>
+            <span class="reply-bar-text">{{ replyPreviewOf(target) }}</span>
+          </div>
+          <button type="button" class="tool-button" aria-label="返信をやめる" (click)="replyTarget.set(null)">
+            <fa-icon [icon]="icons.close" />
+          </button>
+        </div>
+      }
+
       <form class="input-row" (ngSubmit)="sendText()">
         <button
           type="button"
@@ -163,15 +202,18 @@
           <fa-icon [icon]="icons.image" />
           <input type="file" accept="image/*" (change)="onImageSelected($event)" />
         </label>
-        <input
-          type="text"
+        <!-- パソコンは Enter で送信・Shift+Enter で改行、スマホは改行のキーで改行・送信ボタンで送信。 -->
+        <textarea
+          #composerInput
+          rows="1"
           placeholder="メッセージを入力"
           aria-label="メッセージ"
           maxlength="2000"
           [ngModel]="draftText()"
           (ngModelChange)="draftText.set($event)"
+          (keydown.enter)="onComposerEnter($any($event))"
           name="draftText"
-        />
+        ></textarea>
         <button type="submit" class="send" [disabled]="sending() || !draftText().trim()">送信</button>
       </form>
     </div>
