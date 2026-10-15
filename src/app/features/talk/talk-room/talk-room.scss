@@ -164,22 +164,10 @@ $accent: #0f766e;
     transition: background 0.3s;
   }
 
-  // マウスを使う端末では、吹き出し(とその横のボタン)にマウスを乗せたときだけ、リアクション・返信のボタンを出す。
-  // 行は画面の横幅いっぱいあるため、行ではなく吹き出しの並び(.bubble-line)で見る(吹き出しから離れたら消える)。
-  @media (hover: hover) {
-    .bubble-line:hover .react-button {
-      opacity: 1;
-    }
-  }
-
+  // マウスを使う端末では、マウスを乗せている行(.hovered。talk-room.ts の hoveredMessageId)にだけ、
+  // リアクション・返信のボタンを出す。リアクションを選んでいる間(.active)も出したままにする。
+  &.hovered .react-button,
   .react-button.active {
-    opacity: 1;
-  }
-}
-
-// マウスを乗せられない端末(スマホ・タブレット)では、リアクション・返信のボタンを常に出す。
-@media (hover: none) {
-  .react-button {
     opacity: 1;
   }
 }
@@ -463,6 +451,14 @@ $accent: #0f766e;
 
   input[type='file'] {
     display: none;
+  }
+}
+
+// マウスを乗せられない端末(スマホ・タブレット)では、リアクション・返信のボタンを常に出す
+// (.react-button の opacity: 0 より後に書く。同じ強さの指定は後に書いた方が効く)。
+@media (hover: none) {
+  .react-button {
+    opacity: 1;
   }
 }
 

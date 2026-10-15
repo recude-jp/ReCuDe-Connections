@@ -24,7 +24,7 @@
     </header>
 
     <!-- 上端に近づくと、前のメッセージを自動で読み込む(onMessagesScroll)。 -->
-    <div class="messages" #messagesContainer (scroll)="onMessagesScroll()">
+    <div class="messages" #messagesContainer (scroll)="onMessagesScroll()" (mouseleave)="hoveredMessageId.set(null)">
       @if (loadingOlder()) {
         <div class="load-older" role="status"><app-spinner /> 以前のメッセージを読み込んでいます</div>
       }
@@ -34,7 +34,10 @@
           [id]="'message-' + message.id"
           [class.highlight]="highlightedId() === message.id"
           [class.mine]="isMine(message)"
-          [class.has-reply]="replyQuotes().has(message.id)" [class.continued]="continuation()[i].fromPrevious" [class.joins-next]="continuation()[i].toNext">
+          [class.has-reply]="replyQuotes().has(message.id)"
+          [class.hovered]="hoveredMessageId() === message.id"
+          (mouseenter)="hoveredMessageId.set(message.id)"
+          (mouseleave)="hoveredMessageId.set(null)" [class.continued]="continuation()[i].fromPrevious" [class.joins-next]="continuation()[i].toNext">
           <!-- 自分以外のメッセージの頭に、送った人のプロフィール画像(未登録なら名前の最初の1文字)を出す。押すとプロフィール。
                同じ人が続けて送った2通目からは出さず、吹き出しの位置をそろえるため場所だけ空ける。 -->
           @if (!isMine(message) && continuation()[i].fromPrevious) {
