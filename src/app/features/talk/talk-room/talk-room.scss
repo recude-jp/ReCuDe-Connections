@@ -164,7 +164,7 @@ $accent: #0f766e;
     transition: background 0.3s;
   }
 
-  // マウスを使う端末では、マウスを乗せている行(.hovered。talk-room.ts の hoveredMessageId)にだけ、
+  // マウスを使う端末では、吹き出しにマウスを乗せている行(.hovered。talk-room.ts の hoveredMessageId)にだけ、
   // リアクション・返信のボタンを出す。リアクションを選んでいる間(.active)も出したままにする。
   &.hovered .react-button,
   .react-button.active {

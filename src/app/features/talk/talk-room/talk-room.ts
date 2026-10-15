@@ -323,7 +323,7 @@ export class TalkRoom {
   /** スタンプ選択パネル(送信欄のボタンで開く)。 */
   readonly stampPanelOpen = signal(false);
 
-  /** マウスを乗せている行のメッセージ(その行にだけ、リアクション・返信のボタンを出す)。 */
+  /** 吹き出しにマウスを乗せているメッセージ(その行にだけ、リアクション・返信のボタンを出す)。 */
   readonly hoveredMessageId = signal<string | null>(null);
 
   /** リアクションを選んでいるメッセージ(メッセージを押すと、その下に選択肢を出す)。 */

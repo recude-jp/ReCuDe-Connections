@@ -35,9 +35,7 @@
           [class.highlight]="highlightedId() === message.id"
           [class.mine]="isMine(message)"
           [class.has-reply]="replyQuotes().has(message.id)"
-          [class.hovered]="hoveredMessageId() === message.id"
-          (mouseenter)="hoveredMessageId.set(message.id)"
-          (mouseleave)="hoveredMessageId.set(null)" [class.continued]="continuation()[i].fromPrevious" [class.joins-next]="continuation()[i].toNext">
+          [class.hovered]="hoveredMessageId() === message.id" [class.continued]="continuation()[i].fromPrevious" [class.joins-next]="continuation()[i].toNext">
           <!-- 自分以外のメッセージの頭に、送った人のプロフィール画像(未登録なら名前の最初の1文字)を出す。押すとプロフィール。
                同じ人が続けて送った2通目からは出さず、吹き出しの位置をそろえるため場所だけ空ける。 -->
           @if (!isMine(message) && continuation()[i].fromPrevious) {
@@ -69,7 +67,13 @@
                 <span class="reply-quote-text">{{ quote.preview }}</span>
               </button>
             }
-            <div class="bubble-line">
+            <!-- 吹き出しとその横のボタンにマウスを乗せている間だけ、ボタンを出す(行は横幅いっぱいあり、メッセージが多いと
+                 マウスがいつもどこかの行に乗ってしまうため、行ではなくここで見る)。 -->
+            <div
+              class="bubble-line"
+              (mouseenter)="hoveredMessageId.set(message.id)"
+              (mouseleave)="hoveredMessageId.set(null)"
+            >
               @if (message.status === 'removed') {
                 <span class="bubble removed">（削除されたメッセージ）</span>
               } @else if (message.decrypt === 'pending') {
